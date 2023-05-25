@@ -73,6 +73,9 @@ def properties_of_halo(halo, sim_data):
     #Create the star-type filter to make it easier to extract the creation time for the SFR calculation
     sim_data.add_particle_filter("stars")
     
+    #Calculating total stellar mass
+    sm_mass = np.sum(reg["stars", "particle_mass"].in_units("Msun"))
+    
     #Get the mass and the formation time for each star particle in the halo
     s_mass_each = reg["stars", "particle_mass"].in_units("Msun")
     formation_time = reg["stars", "creation_time"].in_units("Gyr")
