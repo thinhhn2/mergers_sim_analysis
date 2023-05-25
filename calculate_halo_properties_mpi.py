@@ -122,24 +122,22 @@ yt.enable_parallelism(communicator=comm)
 
 #Load the halo list organized by redshift
 if shielding_on == 1:
-    halo = np.load('halolist_by_redshift_shield.npy',allow_pickle=True).tolist()
+    halolist = np.load('halolist_by_redshift_shield.npy',allow_pickle=True).tolist()
 if shielding_on == 0:
-    halo = np.load('halolist_by_redshift_nonshield.npy',allow_pickle=True).tolist()
+    halolist = np.load('halolist_by_redshift_nonshield.npy',allow_pickle=True).tolist()
 
 my_storage = {}
 
 #Running parallel, each processor is responsible for all the halos in one snapshot
-for sto, i in yt.parallel_objects(list(halo.keys()), nprocs-1, storage = my_storage):
+for sto, i in yt.parallel_objects(list(halolist.keys()), nprocs-1, storage = my_storage):
     #The key in the halo_ns list is the index of the snapshot in the pfs.dat file (0 corresponds to DD0314, etc.)
     redshift_index = int(i)
     #Each processor obtains all the halos in each snapshot
-    all_halos_z = halo[i]
+    all_halos_z = halolist[i]
     #Load the simulation
     sim_data = yt.load(snapshot[redshift_index])
     #Create an array to store the general halo information
     result_each_z = []
-    #Create an array to store the mass and formation time of each star in a halo
-    star_each_z = []
     #Run through the list of halo in one snapshot.
     for j in range(len(all_halos_z)):
         halo = all_halos_z[j]
