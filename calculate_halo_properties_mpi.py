@@ -93,7 +93,7 @@ def properties_of_halo(halo, sim_data):
     #Calculate the gas mass fraction
     g_mass_fraction = g_mass/mvir
     
-    return tree_loc, coor,float(currenttime),float(g_mass_fraction), float(g_mass), float(dm_mass), float(h2_mass), float(h2_fraction), float(pop2_mass), float(pop3_mass), float(sfr), float(mvir)
+    return tree_loc, coor,float(currenttime),float(g_mass_fraction), float(g_mass), float(dm_mass), float(h2_mass), float(h2_fraction), float(pop2_mass), float(pop3_mass), float(sm_mass), float(sfr), float(mvir)
 
 #----------------------------------------------------------------------------------
 shielding_on = 1
