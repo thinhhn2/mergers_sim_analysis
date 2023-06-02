@@ -23,7 +23,7 @@ y_refined_upper = 0.5391601563
 z_refined_lower = 0.465625 
 z_refined_upper = 0.5265625
 mass_limit = 1e6 #in Msun unit
-radius_limit = 1e-3 #in code unit
+#radius_limit = 1e-3 #in code unit (this is the radius limit of the largest halo in the tree)
 
 
 total_result = {}
@@ -55,13 +55,13 @@ for tree_index in range(len(arbor)):
         subtree_list = {}
         
         #If the main progenitor lineage does not satisfy the constraint, remove the whole trees
-        if index == index_first_halo and (sum(subtree_raw['prog','x'].to('unitary') < x_refined_lower) > 0 or sum(subtree_raw['prog','x'].to('unitary') > x_refined_upper) > 0 or sum(subtree_raw['prog','y'].to('unitary') < y_refined_lower) > 0 or sum(subtree_raw['prog','y'].to('unitary') > y_refined_upper) > 0 or sum(subtree_raw['prog','z'].to('unitary') < z_refined_lower) > 0 or sum(subtree_raw['prog','z'].to('unitary') > z_refined_upper) > 0 or sum(subtree_raw['prog','mass'].to('Msun') < mass_limit) > 0 or sum(subtree_raw['prog','virial_radius'].to('unitary') < radius_limit) > 0):
+        if index == index_first_halo and (sum(subtree_raw['prog','x'].to('unitary') < x_refined_lower) > 0 or sum(subtree_raw['prog','x'].to('unitary') > x_refined_upper) > 0 or sum(subtree_raw['prog','y'].to('unitary') < y_refined_lower) > 0 or sum(subtree_raw['prog','y'].to('unitary') > y_refined_upper) > 0 or sum(subtree_raw['prog','z'].to('unitary') < z_refined_lower) > 0 or sum(subtree_raw['prog','z'].to('unitary') > z_refined_upper) > 0 or sum(subtree_raw['prog','mass'].to('Msun') < mass_limit) > 0):
             break
         
         #Setting the constraints on the tree/halo selection
         #All halos of every branch needs to be larger than 10^6 Msun and 
         #be within the refined region
-        if sum(subtree_raw['prog','x'].to('unitary') < x_refined_lower) > 0 or sum(subtree_raw['prog','x'].to('unitary') > x_refined_upper) > 0 or sum(subtree_raw['prog','y'].to('unitary') < y_refined_lower) > 0 or sum(subtree_raw['prog','y'].to('unitary') > y_refined_upper) > 0 or sum(subtree_raw['prog','z'].to('unitary') < z_refined_lower) > 0 or sum(subtree_raw['prog','z'].to('unitary') > z_refined_upper) > 0 or sum(subtree_raw['prog','mass'].to('Msun') < mass_limit) > 0 or sum(subtree_raw['prog','virial_radius'].to('unitary') < radius_limit) > 0:
+        if sum(subtree_raw['prog','x'].to('unitary') < x_refined_lower) > 0 or sum(subtree_raw['prog','x'].to('unitary') > x_refined_upper) > 0 or sum(subtree_raw['prog','y'].to('unitary') < y_refined_lower) > 0 or sum(subtree_raw['prog','y'].to('unitary') > y_refined_upper) > 0 or sum(subtree_raw['prog','z'].to('unitary') < z_refined_lower) > 0 or sum(subtree_raw['prog','z'].to('unitary') > z_refined_upper) > 0 or sum(subtree_raw['prog','mass'].to('Msun') < mass_limit) > 0:
             index = subtree[-1]['Depth_first_ID'] + 1
             continue 
         
@@ -129,7 +129,8 @@ for item in key_name:
         mapping[first_number] = str(len(mapping))
 
 #Replacing the arbor-index keys with modified keys
-modified_key_name = [item.replace(item.split('_')[0], mapping[item.split('_')[0]]) for item in key_name]
+#The number "1" in the item.replace means that the replacement only happens at the first occurence. For example, "3_3" will be changed to "0_3" instead of "0_0"
+modified_key_name = [item.replace(item.split('_')[0], mapping[item.split('_')[0]],1) for item in key_name]
 
 # Create a new dictionary with updated keys
 modified_total_result = {}
