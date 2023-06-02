@@ -22,7 +22,8 @@ y_refined_lower = 0.4735351562
 y_refined_upper = 0.5391601563
 z_refined_lower = 0.465625 
 z_refined_upper = 0.5265625
-mass_limit = 1e6
+mass_limit = 1e6 #in Msun unit
+radius_limit = 1e-3 #in code unit
 
 
 total_result = {}
@@ -54,13 +55,13 @@ for tree_index in range(len(arbor)):
         subtree_list = {}
         
         #If the main progenitor lineage does not satisfy the constraint, remove the whole trees
-        if index == index_first_halo and (sum(subtree_raw['prog','x'].to('unitary') < x_refined_lower) > 0 or sum(subtree_raw['prog','x'].to('unitary') > x_refined_upper) > 0 or sum(subtree_raw['prog','y'].to('unitary') < y_refined_lower) > 0 or sum(subtree_raw['prog','y'].to('unitary') > y_refined_upper) > 0 or sum(subtree_raw['prog','z'].to('unitary') < z_refined_lower) > 0 or sum(subtree_raw['prog','z'].to('unitary') > z_refined_upper) > 0 or sum(subtree_raw['prog','mass'].to('Msun') < mass_limit) > 0):
+        if index == index_first_halo and (sum(subtree_raw['prog','x'].to('unitary') < x_refined_lower) > 0 or sum(subtree_raw['prog','x'].to('unitary') > x_refined_upper) > 0 or sum(subtree_raw['prog','y'].to('unitary') < y_refined_lower) > 0 or sum(subtree_raw['prog','y'].to('unitary') > y_refined_upper) > 0 or sum(subtree_raw['prog','z'].to('unitary') < z_refined_lower) > 0 or sum(subtree_raw['prog','z'].to('unitary') > z_refined_upper) > 0 or sum(subtree_raw['prog','mass'].to('Msun') < mass_limit) > 0 or sum(subtree_raw['prog','virial_radius'].to('unitary') < radius_limit) > 0):
             break
         
         #Setting the constraints on the tree/halo selection
         #All halos of every branch needs to be larger than 10^6 Msun and 
         #be within the refined region
-        if sum(subtree_raw['prog','x'].to('unitary') < x_refined_lower) > 0 or sum(subtree_raw['prog','x'].to('unitary') > x_refined_upper) > 0 or sum(subtree_raw['prog','y'].to('unitary') < y_refined_lower) > 0 or sum(subtree_raw['prog','y'].to('unitary') > y_refined_upper) > 0 or sum(subtree_raw['prog','z'].to('unitary') < z_refined_lower) > 0 or sum(subtree_raw['prog','z'].to('unitary') > z_refined_upper) > 0 or sum(subtree_raw['prog','mass'].to('Msun') < mass_limit) > 0:
+        if sum(subtree_raw['prog','x'].to('unitary') < x_refined_lower) > 0 or sum(subtree_raw['prog','x'].to('unitary') > x_refined_upper) > 0 or sum(subtree_raw['prog','y'].to('unitary') < y_refined_lower) > 0 or sum(subtree_raw['prog','y'].to('unitary') > y_refined_upper) > 0 or sum(subtree_raw['prog','z'].to('unitary') < z_refined_lower) > 0 or sum(subtree_raw['prog','z'].to('unitary') > z_refined_upper) > 0 or sum(subtree_raw['prog','mass'].to('Msun') < mass_limit) > 0 or sum(subtree_raw['prog','virial_radius'].to('unitary') < radius_limit) > 0:
             index = subtree[-1]['Depth_first_ID'] + 1
             continue 
         
