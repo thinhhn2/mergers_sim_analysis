@@ -11,6 +11,31 @@ import ytree
 import sys
 import glob as glob
 import os
+import yt
+from yt.data_objects.particle_filters import add_particle_filter
+
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+rank = comm.rank
+nprocs = comm.size
+yt.enable_parallelism(communicator=comm)
+
+#Create yt filter for Pop 3 stars
+def PopIII(pfilter, data):
+     filter_stars_pop3 = np.logical_and(data["all", "particle_type"] == 5, data["all", "particle_mass"].to('Msun') > 1) #Adding pop 3 stars
+     return filter_stars_pop3  
+ 
+add_particle_filter("PopIII", function=PopIII, filtered_type="all", requires=["particle_type","particle_mass"])
+
+#Create yt filter for stars in general (Pop 2 + Pop 3)
+def stars(pfilter, data):
+     filter_stars_type_pop2 = data["all", "particle_type"] == 7
+     filter_stars_type_pop3 = np.logical_and(data["all", "particle_type"] == 5, data["all", "particle_mass"].to('Msun') > 1) #Adding pop 3 stars
+     filter_stars = np.logical_or(filter_stars_type_pop2, filter_stars_type_pop3) 
+     return filter_stars  
+    
+add_particle_filter("stars", function=stars, filtered_type="all", requires=["particle_type","particle_mass"])
+
 
 
 def make_pfs(folder, rockfolder):
@@ -99,6 +124,22 @@ def make_pfs(folder, rockfolder):
     os.chdir(cwd)
 
 def merger_histories(folder, mass_limit = 1e6):
+    """
+
+    Parameters
+    ----------
+    folder : str
+        The directory of the folder that contains all the simulation snapshots.
+    mass_limit : float, optional
+        The minimum mass that a halo can have to be reliable. The default is 1e6.
+
+    Returns
+    -------
+    modified_total_result : dictionary
+        The merger history of the simulation. The halos are put into different merger trees and
+        branches, which are represented by the dictionary keys
+
+    """
     #arbor = ytree.load('halo_comparison_using_consistent_tree_output/tree_0_0_0_shield.dat')
     arbor = ytree.load('%s/%s/trees/tree_0_0_0.dat' % (folder,rockfolder))
     
@@ -235,6 +276,157 @@ def merger_histories(folder, mass_limit = 1e6):
     
     return modified_total_result
 
+def calculate_properties(halo, sim_data, sfr_avetime = 0.005):
+    """
+    Parameters
+    ----------
+    halo: list, the halo information from the dictionary
+    sim_data: the loaded simulation
+    sfr_avetime: the time to average the SFR. Default = 5 million years (0.005 Gyr)
+
+    Returns
+    -------
+    A dictionary containing the properties of the input halo
+    
+    -------
+    This function takes the halo information and return the gas and stellar properties
+    of a halo
+
+    """
+    
+    #Load the coordinates and radius of the halo (they are already in code_length unit)
+    coor = halo['coor']
+    radius = halo['Rvir']
+    tree_loc = halo['tree_loc']
+    ID = halo['id']
+    rvir = halo['Rvir']
+    
+    
+    #Select the region of the halo
+    reg = sim_data.sphere(coor,(radius,"code_length")) 
+    
+    #Calculate the gas mass in the region
+    g_mass = np.sum(reg[("gas","cell_mass")]).to('Msun') 
+    
+    #Obtain the type of the particles to get the dark matter particle mass (type_particle == 1)
+    type_particle = reg[('all','particle_type')]
+    dm_mass = np.sum(reg[("all","particle_mass")][type_particle == 1].to('Msun'))
+    
+    #Calculate the H2 mass
+    h2_mass = np.sum(reg[("gas","H2_mass")]).to('Msun') 
+    
+    #Calculate the weighted H2_fraction (the weight is the gas mass)
+    h2_fraction_each = reg[("gas","H2_fraction")]
+    g_mass_each = reg[("gas","cell_mass")].to('Msun')
+    h2_fraction = np.average(h2_fraction_each,weights=g_mass_each)
+    
+    #Calculate the Pop II star mass
+    pop2_mass = np.sum(reg[("all","particle_mass")][type_particle == 7].to('Msun'))
+    
+    #Create the star-type filter for Pop III stars
+    sim_data.add_particle_filter("PopIII")
+    
+    #Calculate the Pop III star mass
+    pop3_mass = np.sum(reg["PopIII", "particle_mass"].in_units("Msun"))
+    
+    #Create the star-type filter to make it easier to extract the creation time for the SFR calculation
+    sim_data.add_particle_filter("stars")
+    
+    #Calculating total stellar mass
+    sm_mass = np.sum(reg["stars", "particle_mass"].in_units("Msun"))
+    
+    #Get the mass and the formation time for each star particle in the halo
+    s_mass_each = reg["stars", "particle_mass"].in_units("Msun")
+    formation_time = reg["stars", "creation_time"].in_units("Gyr")
+    
+    #Averaging the SFR 5 million years before the time of the snapshot
+    sf_timescale = sfr_avetime*sim_data.units.Gyr
+    currenttime = sim_data.current_time.in_units('Gyr')
+    
+    sfr = np.sum(s_mass_each[formation_time > currenttime - sf_timescale])/sf_timescale 
+    sfr = sfr.in_units('Msun/yr')
+    
+    #Calculate the mvir total mass from yt
+    mvir = np.sum(reg["all", "particle_mass"].in_units("Msun")) + g_mass
+    
+    #Calculate the gas mass fraction
+    g_mass_fraction = g_mass/mvir
+    
+    #Make a dictionary for the output
+    output_dict = {"id":ID,"tree_loc":tree_loc,'coor':coor,'Rvir':rvir,'time':float(currenttime),'gas_mass': float(g_mass), 'gas_mass_frac': float(g_mass_fraction),'dm_mass': float(dm_mass), 'h2_mass': float(h2_mass), 'h2_frac':float(h2_fraction),'pop2_mass': float(pop2_mass), 'pop3_mass': float(pop3_mass), 'star_mass': float(sm_mass), 'sfr': float(sfr), 'total_mass':float(mvir)}
+    
+    return output_dict
+
+def add_properties(folder, merger_histories):
+    """
+    This function add the additional properties (mass, SFR, etc.) to the merger history
+    file. 
+
+    Parameters
+    ----------
+    folder : str
+        The directory to the folder containing the simulation snaptshots.
+    merger_histories : dictionary
+        The merger history in the dictionary format.
+
+    Returns
+    -------
+    halo_by_loc : dictionary
+        The merger history accompanied with additional properties of masses and SFR.
+        The keys of the dictionary are the tree locations.
+
+    """
+    #Obtain the index of the redshifts
+    gs = np.loadtxt('%s/pfs_manual.dat' % folder,dtype=str)
+    z_index = np.arange(0,len(gs),1)
+    
+    #Obtains the list of all the tree locations
+    tree_loc_list = list(merger_histories.keys())
+    
+    #Sorting the merger_histories dictionary by redshift instead of tree branches to allow faster parallelization
+    halo_by_z = {}
+    for i in z_index:
+        halos_each = []
+        for mainkey, value in merger_histories.items():
+            if str(i) in value.keys():
+                value_add = value[str(i)]
+                value_add['tree_loc'] = mainkey
+                halos_each.append(value_add)
+        key_name = str(i)
+        halo_by_z[key_name] = halos_each
+    
+    #Runnning parallel to add the halo properties 
+    my_storage = {}
+    
+    for sto, i in yt.parallel_objects(list(halo_by_z.keys()), nprocs-1, storage = my_storage):
+        #The key in the halo_ns list is the index of the snapshot in the pfs.dat file (0 corresponds to DD0314, etc.)
+        redshift_index = int(i)
+        #Each processor obtains all the halos in each snapshot
+        all_halos_z = halo_by_z[i]
+        #Load the simulation
+        sim_data = yt.load('%s/%s' % (folder,gs[redshift_index]))
+        #Create an array to store the general halo information
+        result_each_z = []
+        #Run through the list of halo in one snapshot.
+        for j in range(len(all_halos_z)):
+            halo = all_halos_z[j]
+            result_each_z.append(calculate_properties(halo, sim_data)) #Obtain the halo's properties
+        sto.result = {}
+        sto.result[0] = i
+        sto.result[1] = result_each_z
+        
+    #Re-arrange the dictionary from redshift-sort to tree-location-sort
+    halo_by_loc = {}
+    for j in tree_loc_list:
+        halos_each_loc = {}
+        for c, vals in sorted(my_storage.items()):
+            for m in range(len(vals[1])):
+                if j == vals[1][m]['tree_loc']:
+                    halos_each_loc[vals[0]] = vals[1][m]
+        halo_by_loc[j] = halos_each_loc
+    
+    return halo_by_loc
+        
 #The directory to the folder containing the simulation snapshots
 folder = sys.argv[-1]
 rockfolder = 'rockstar_halos'
@@ -247,7 +439,8 @@ else:
 
 #Calculate the merger history
 result = merger_histories(folder)
+result_properties = add_properties(folder, result)
 
 #Save the output
-np.save('halotrees_Thinh_testingfunction.npy',result)
+np.save('halotrees_Thinh_testingfunction.npy',result_properties)
 
