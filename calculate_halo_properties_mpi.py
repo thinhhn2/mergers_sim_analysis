@@ -73,6 +73,9 @@ def properties_of_halo(halo, sim_data):
     #Create the star-type filter to make it easier to extract the creation time for the SFR calculation
     sim_data.add_particle_filter("stars")
     
+    #Calculating total stellar mass
+    sm_mass = np.sum(reg["stars", "particle_mass"].in_units("Msun"))
+    
     #Get the mass and the formation time for each star particle in the halo
     s_mass_each = reg["stars", "particle_mass"].in_units("Msun")
     formation_time = reg["stars", "creation_time"].in_units("Gyr")
@@ -84,13 +87,16 @@ def properties_of_halo(halo, sim_data):
     sfr = np.sum(s_mass_each[formation_time > currenttime - sf_timescale])/sf_timescale 
     sfr = sfr.in_units('Msun/yr')
     
-    #Calculate the mvir mass from yt
-    mvir = dm_mass + pop2_mass + pop3_mass + g_mass
+    #Calculate the mvir total mass from yt
+    mvir = np.sum(reg["all", "particle_mass"].in_units("Msun")) + g_mass
     
     #Calculate the gas mass fraction
     g_mass_fraction = g_mass/mvir
     
-    return tree_loc, coor,float(currenttime),float(g_mass_fraction), float(g_mass), float(dm_mass), float(h2_mass), float(h2_fraction), float(pop2_mass), float(pop3_mass), float(sfr), float(mvir)
+    #Make a dictionary for the output
+    output_dict = {"tree_loc":tree_loc,'coor':coor,'time':float(currenttime),'gas_mass': float(g_mass), 'gas_mass_frac': float(g_mass_fraction),'dm_mass': float(dm_mass), 'h2_mass': float(h2_mass), 'h2_frac':float(h2_fraction),'pop2_mass': float(pop2_mass), 'pop3_mass': float(pop3_mass), 'star_mass': float(sm_mass), 'sfr': float(sfr), 'total_mass':float(mvir)}
+    
+    return output_dict
 
 #----------------------------------------------------------------------------------
 shielding_on = 1
