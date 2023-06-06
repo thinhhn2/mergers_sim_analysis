@@ -140,7 +140,6 @@ def merger_histories(folder, mass_limit = 1e6):
         branches, which are represented by the dictionary keys
 
     """
-    #arbor = ytree.load('halo_comparison_using_consistent_tree_output/tree_0_0_0_shield.dat')
     arbor = ytree.load('%s/%s/trees/tree_0_0_0.dat' % (folder,rockfolder))
     
     #Setting the refined boundary constraints when making the merger histories
@@ -164,7 +163,6 @@ def merger_histories(folder, mass_limit = 1e6):
     total_result = {}
      
     for tree_index in range(len(arbor)):
-    #for tree_index in range(100):
         
         tree_result = {}
         
@@ -240,7 +238,6 @@ def merger_histories(folder, mass_limit = 1e6):
             #Adding the branch to the result dictionary
             tree_result[branch] = subtree_list
             
-            #branch += 1
             #We obtain the Depth_first_ID of the last halo in the subtree. The Depth_first_ID  
             #of the first halo of the next new subtree will be that + 1. This is due to 
             #how the Depth_first_ID order works
