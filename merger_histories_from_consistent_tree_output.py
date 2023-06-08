@@ -13,6 +13,7 @@ import glob as glob
 import os
 import yt
 from yt.data_objects.particle_filters import add_particle_filter
+from functools import reduce
 
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
@@ -123,7 +124,7 @@ def make_pfs(folder, rockfolder):
     #Change back to the original working directory
     os.chdir(cwd)
 
-def merger_histories(folder, mass_limit = 1e6):
+def merger_histories(folder, mass_limit = 1e6, radius_limit = 1e-3):
     """
 
     Parameters
@@ -135,7 +136,7 @@ def merger_histories(folder, mass_limit = 1e6):
 
     Returns
     -------
-    modified_total_result : dictionary
+    total_result : dictionary
         The merger history of the simulation. The halos are put into different merger trees and
         branches, which are represented by the dictionary keys
 
@@ -161,10 +162,11 @@ def merger_histories(folder, mass_limit = 1e6):
        z_refined_upper = float(re[-1])
     
     total_result = {}
+    
+    #Counting the number of good trees
+    tree_counter = 0
      
     for tree_index in range(len(arbor)):
-        
-        tree_result = {}
         
         fulltree = list(arbor[tree_index]['tree'])    
         #We obtain the index of the first halo in the examined tree. This is to set the
@@ -182,21 +184,34 @@ def merger_histories(folder, mass_limit = 1e6):
             #Select the subtree from the top halo. This is the main progenitor lineage of the halo
             #We need "index - index_first_halo" because we slice according to the list index, 
             #which is different from the Depth_first_ID index
-            subtree = list(fulltree[index - index_first_halo]['prog']) 
+            subtree = np.array(list(fulltree[index - index_first_halo]['prog'])) 
+            #Save the index of the last halo in the subtree (for looping purpose later)
+            subtree_last_index = subtree[-1]['Depth_first_ID']
             subtree_raw = fulltree[index - index_first_halo]
             #Calculate the gas_mass_fraction and redshift for all the nodes in the subtree
             subtree_list = {}
             
-            #If the main progenitor lineage does not satisfy the constraint, remove the whole trees
-            if index == index_first_halo and (sum(subtree_raw['prog','x'].to('unitary') < x_refined_lower) > 0 or sum(subtree_raw['prog','x'].to('unitary') > x_refined_upper) > 0 or sum(subtree_raw['prog','y'].to('unitary') < y_refined_lower) > 0 or sum(subtree_raw['prog','y'].to('unitary') > y_refined_upper) > 0 or sum(subtree_raw['prog','z'].to('unitary') < z_refined_lower) > 0 or sum(subtree_raw['prog','z'].to('unitary') > z_refined_upper) > 0 or sum(subtree_raw['prog','mass'].to('Msun') < mass_limit) > 0):
-                break
+            x_lower_bool = subtree_raw['prog','x'].to('unitary') > x_refined_lower
+            x_upper_bool = subtree_raw['prog','x'].to('unitary') < x_refined_upper
+            y_lower_bool = subtree_raw['prog','y'].to('unitary') > y_refined_lower
+            y_upper_bool = subtree_raw['prog','y'].to('unitary') < y_refined_upper
+            z_lower_bool = subtree_raw['prog','z'].to('unitary') > z_refined_lower
+            z_upper_bool = subtree_raw['prog','z'].to('unitary') < z_refined_upper
+            mass_bool = subtree_raw['prog','mass'].to('Msun') > mass_limit
+            radius_bool = subtree_raw['prog','Rvir'].to('unitary') > radius_limit
             
-            #Setting the constraints on the tree/halo selection
-            #All halos of every branch needs to be larger than 10^6 Msun and 
-            #be within the refined region
-            if sum(subtree_raw['prog','x'].to('unitary') < x_refined_lower) > 0 or sum(subtree_raw['prog','x'].to('unitary') > x_refined_upper) > 0 or sum(subtree_raw['prog','y'].to('unitary') < y_refined_lower) > 0 or sum(subtree_raw['prog','y'].to('unitary') > y_refined_upper) > 0 or sum(subtree_raw['prog','z'].to('unitary') < z_refined_lower) > 0 or sum(subtree_raw['prog','z'].to('unitary') > z_refined_upper) > 0 or sum(subtree_raw['prog','mass'].to('Msun') < mass_limit) > 0:
-                index = subtree[-1]['Depth_first_ID'] + 1
-                continue 
+            #Combine all the constraint booleans into one array with "and" operator
+            all_bool = [x_lower_bool, x_upper_bool, y_lower_bool, y_upper_bool, z_lower_bool, z_upper_bool, mass_bool, radius_bool]
+            all_bool_combined = reduce(np.logical_and,all_bool)
+            
+            #Remove the halos that violate the constraints (coordinate, mass, or radius) out of the subtree
+            subtree = subtree[all_bool_combined]
+            
+            #If all halos in the subtree violate the constraints, skip to the next subtree
+            if len(subtree) == 0:
+                index = subtree_last_index + 1
+                continue
+            
             
             for j in range(len(subtree)):
                 snapshot_index = subtree[j]['Snap_idx']
@@ -207,20 +222,14 @@ def merger_histories(folder, mass_limit = 1e6):
                 subtree_list[str(snapshot_index)]['mass'] = float(subtree[j]['mass'])
                 subtree_list[str(snapshot_index)]['time'] = float(subtree[j]['time']) 
             
-            #If this is the main progenitor tree, assigning the branch name, skip the rest of the loop,
-            #and restart the loop
-            if index == index_first_halo:
-                branch = '{}'.format(tree_index)
-                tree_result[branch] = subtree_list
-                
-                index = subtree[-1]['Depth_first_ID'] + 1
-                continue
             
             #Obtain all the keys in the current result dictionary
-            result_all_key = list(tree_result.keys())
+            result_all_key = list(total_result.keys())
             
+            #Set up a flag to create a new tree (because after removing some halos, the branch can become disconnected)
+            new_tree_counter_flag = 1
             #Loop through the available (sub)trees
-            for key, vals in tree_result.items():
+            for key, vals in total_result.items():
                 id_list = []
                 #Generate the id list for all the halos in a (sub)tree
                 for sub_key, sub_vals in vals.items():
@@ -234,44 +243,23 @@ def merger_histories(folder, mass_limit = 1e6):
                     subfix_counter = sum(1 for item in result_all_key if item.startswith(header) and item.count('_')==header.count('_')) 
                     #The new branch (or subtree) will be named by the name of its originating branch + '_' + the next counter number
                     branch = key + '_' + str(subfix_counter)
+                    #If the branch belongs to other bigger branch, turn off the flaf
+                    new_tree_counter_flag = 0
+            
+            #If the flag is still on, turn that unconnected branch into a tree itself
+            if new_tree_counter_flag == 1:
+                branch = '{}'.format(tree_counter)
+                tree_counter += 1
                     
             #Adding the branch to the result dictionary
-            tree_result[branch] = subtree_list
+            total_result[branch] = subtree_list
             
             #We obtain the Depth_first_ID of the last halo in the subtree. The Depth_first_ID  
             #of the first halo of the next new subtree will be that + 1. This is due to 
             #how the Depth_first_ID order works
-            index = subtree[-1]['Depth_first_ID'] + 1
-            
-            #Merging the dictionaries from each tree
-            total_result = total_result | tree_result
+            index = subtree_last_index + 1
     
-    key_name = list(total_result.keys())
-    
-    mapping = {}  # Initialize an empty mapping
-    
-    #Re-order the name of the tree_index. Instead of using the arbor index, we re-order it from 0 to 
-    #whatever the number of trees we have
-    for item in key_name:
-        #Obtain the prefix of the tree key name
-        first_number = item.split('_')[0]
-        #If the first_number first appears in the loop, add it to the mapping. The mapping is responsible
-        #for converting the arbor index to a new-ordered index
-        if first_number not in mapping:
-            mapping[first_number] = str(len(mapping))
-    
-    #Replacing the arbor-index keys with modified keys
-    #The number "1" in the item.replace means that the replacement only happens at the first occurence. For example, "3_3" will be changed to "0_3" instead of "0_0"
-    modified_key_name = [item.replace(item.split('_')[0], mapping[item.split('_')[0]],1) for item in key_name]
-    
-    # Create a new dictionary with updated keys
-    modified_total_result = {}
-    
-    for key, value in total_result.items():
-        new_key = modified_key_name[key_name.index(key)]
-        modified_total_result[new_key] = value
-    
-    return modified_total_result
+    return total_result
 
 def calculate_properties(halo, sim_data, sfr_avetime = 0.005):
     """
