@@ -3,6 +3,12 @@ import numpy as np
 from yt.data_objects.particle_filters import add_particle_filter
 import matplotlib.pyplot as plt
 
+yt.enable_parallelism()
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+rank = comm.rank
+nprocs = comm.size
+
 def stars(pfilter, data):
      filter_stars = np.logical_and(data["all", "particle_type"] == 2, data["all", "particle_mass"].to('Msun') > 1)
      return filter_stars
@@ -11,7 +17,8 @@ tree = np.load('halotree_Thinh_structure_with_com.npy',allow_pickle=True).tolist
 pfs = np.loadtxt('pfs_manual.dat',dtype='str')
 snapshot_idx = list(tree['0'].keys())
 
-for idx in snapshot_idx:
+my_storage = {}
+for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage):
     ds = yt.load(pfs[int(idx)])
 
     coor = tree['0'][idx]['coor']
