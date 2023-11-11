@@ -1,4 +1,5 @@
 import yt
+from yt.data_objects.particle_filters import add_particle_filter
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -10,6 +11,10 @@ nprocs = comm.size
 
 #-------------------------------------------------------------------------------------------
 #DEFINE FUNCTIONS
+
+def stars(pfilter, data):
+     filter_stars = np.logical_and(data["all", "particle_type"] == 2, data["all", "particle_mass"].to('Msun') > 1)
+     return filter_stars
 
 def find_scale_distace(s_distance_to_angmoment,rvir, percent_lim = 0.99):
     """
@@ -25,6 +30,7 @@ def find_scale_distace(s_distance_to_angmoment,rvir, percent_lim = 0.99):
         n_star_distance.append(n_star_bin_distance)
 
     n_star_distance_cumsum = np.cumsum(n_star_distance)
+
     n_star_distance_cumsum_percent = n_star_distance_cumsum/len(s_distance_to_angmoment)
 
     #Find the distance that begins to enclose 99% of the stars in the Rvir region (i.e. scale distance)
@@ -96,9 +102,9 @@ snapshot_idx = list(tree['0'].keys())
 my_storage = {}
 for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage):
 
-    star_data = np.load('stars_%s.npy' % idx,allow_pickle=True).tolist()
-    gas_data = np.load('gas_%s.npy' % idx,allow_pickle=True).tolist()
-    bary_data = np.load('bary_%s.npy' % idx,allow_pickle=True).tolist()
+    star_data = np.load('metadata/stars_%s.npy' % idx,allow_pickle=True).tolist()
+    gas_data = np.load('metadata/gas_%s.npy' % idx,allow_pickle=True).tolist()
+    bary_data = np.load('metadata/bary_%s.npy' % idx,allow_pickle=True).tolist()
 
     com_coor_bary = star_data['com_coor_bary']
     com_vel_bary = star_data['com_vel_bary']
@@ -116,23 +122,26 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
 
     bary_rel_coor_each = bary_data['rel_coor']
     bary_rel_vel_each = bary_data['rel_vel']
+    bary_mass_each = bary_data['mass']
     bary_rel_momentum_each = bary_data['rel_momentum']
     bary_angmoment_each = bary_data['angmoment']
 
     bary_angmoment = np.sum(bary_angmoment_each,axis=0)
     bary_angmoment_unitvec = bary_angmoment/np.sum(bary_angmoment**2)**0.5
 
+    rvir = tree['0'][idx]['Rvir']
+
     #Distance from the particles to the rotational axis
-    numerator = np.cross(bary_relative_coor_each,bary_angmoment_unitvec)
+    numerator = np.cross(bary_rel_coor_each,bary_angmoment_unitvec)
     distance_to_angmoment = np.sqrt(np.sum(numerator**2,axis = 1))/np.sqrt(np.sum(bary_angmoment_unitvec**2))
 
     #Distance between the particles to the disk
-    height = np.abs(np.dot(bary_relative_coor_each,bary_angmoment_unitvec))
+    height = np.abs(np.dot(bary_rel_coor_each,bary_angmoment_unitvec))
 
     #Same for stars
-    s_numerator = np.cross(s_relative_coor_each,bary_angmoment_unitvec)
+    s_numerator = np.cross(s_rel_coor_each,bary_angmoment_unitvec)
     s_distance_to_angmoment = np.sqrt(np.sum(s_numerator**2,axis = 1))/np.sqrt(np.sum(bary_angmoment_unitvec**2))
-    s_height = np.abs(np.dot(s_relative_coor_each,bary_angmoment_unitvec)) #note that the distance can be negative (i.e under the equatorial plane)
+    s_height = np.abs(np.dot(s_rel_coor_each,bary_angmoment_unitvec)) #note that the distance can be negative (i.e under the equatorial plane)
 
     #THIS SECTION DETERMINES WHICH REGION OF THE HALO MOST OF THE GALAXY RESIDE IN 
     #SUBSECTION 1: WITH RESPECT TO THE DISTANCE TO THE ROTATIONAL AXIS
@@ -160,7 +169,7 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     s_dispersion = []
 
     for i in range(1,len(shell_dist)):
-        s_bin_vel = np.array(s_relative_vel_each)[(s_distance_to_angmoment>shell_dist[i-1]) & (s_distance_to_angmoment<shell_dist[i]) & (s_height <= scale_height_all)]
+        s_bin_vel = np.array(s_rel_vel_each)[(s_distance_to_angmoment>shell_dist[i-1]) & (s_distance_to_angmoment<shell_dist[i]) & (s_height <= scale_height_all)]
         s_bin_mass = np.array(s_mass_each)[(s_distance_to_angmoment>shell_dist[i-1]) & (s_distance_to_angmoment<shell_dist[i]) & (s_height <= scale_height_all)]
         s_bin_vel_magnitude = np.sum(s_bin_vel**2,axis=1)**0.5
         if len(s_bin_vel) != 0:
@@ -179,15 +188,15 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     plt.xlabel('r/Rvir',fontsize=14)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
-    plt.savefig('velocity_dispersion_%s.svg' % idx)
+    plt.savefig('morphology_plots/velocity_dispersion_%s.svg' % idx)
 
     #-------------------------------------------------------------------------------------------
     #THIS SECTION CALCULATES THE ROTATIONAL AXIS COMPONENT OF THE VELOCITY 
 
     #Create a boolean array to select the stars within the scale radius and scale height
     s_galaxy = (s_distance_to_angmoment>0) & (s_distance_to_angmoment<=scale_distance) & (s_height <= scale_height_all)
-    s_galaxy_relative_vel_each = np.array(s_relative_vel_each)[s_galaxy]
-    s_galaxy_relative_coor_each = np.array(s_relative_coor_each)[s_galaxy]
+    s_galaxy_relative_vel_each = np.array(s_rel_vel_each)[s_galaxy]
+    s_galaxy_relative_coor_each = np.array(s_rel_coor_each)[s_galaxy]
     s_galaxy_mass_each = np.array(s_mass_each)[s_galaxy]
     s_galaxy_distance_to_angmoment = np.array(s_distance_to_angmoment)[s_galaxy]
     s_galaxy_L_vel_each = np.dot(s_galaxy_relative_vel_each,bary_angmoment_unitvec)
@@ -198,7 +207,7 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     plt.ylabel(r'$v_{L}$ (km/s)',fontsize=14)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
-    plt.savefig('velocity_rotaxis_histogram_%s.svg' % idx)
+    plt.savefig('morphology_plots/velocity_rotaxis_histogram_%s.svg' % idx)
 
     #Calculate the bin values and errors
     s_bin_galaxy_L_vel, s_bin_galaxy_L_vel_error = find_average_and_error_of_bins(s_galaxy_L_vel_each, s_galaxy_mass_each, s_galaxy_distance_to_angmoment, shell_dist)
@@ -208,7 +217,7 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     plt.ylabel(r'$v_{L}$ (km/s)', fontsize=14)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
-    plt.savefig('velocity_rotaxis_%s.svg' % idx)
+    plt.savefig('morphology_plots/velocity_rotaxis_%s.svg' % idx)
     #--------------------------------------------------------------------------------------------
     #THIS SECTION CALCULATES THE DISK-COMPONENT OF THE VELOCITY (PERPENDICULAR TO THE ROTATIONAL-AXIS COMPONENT)
 
@@ -223,7 +232,7 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     plt.ylabel(r'$v_{disk-plane}$ (km/s)', fontsize=14)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
-    plt.savefig('velocity_disk_%s.svg' % idx)
+    plt.savefig('morphology_plots/velocity_disk_%s.svg' % idx)
 
     #-------------------------------------------------------------------------------------------
     #THIS SECTION CALCULATES THE RATIO BETWEEN THE L-COMPONENT AND THE TOTAL MAGNITUDE OF THE VELOCITY 
@@ -238,7 +247,7 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     plt.ylabel(r'$v_{L}/|v|$', fontsize=14)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
-    plt.savefig('velocity_rotaxis_ratio_%s.svg' % idx)
+    plt.savefig('morphology_plots/velocity_rotaxis_ratio_%s.svg' % idx)
 
     #-------------------------------------------------------------------------------------------
     #THIS SECTION CALCULATES THE RATIO BETWEEN THE TOTAL ANGULAR MOMENTUM VS THE L-COMPONENT ANGULAR MOMENTUM
@@ -263,7 +272,7 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     plt.ylabel(r'|$J_{L}$|/|$J$|', fontsize=14)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
-    plt.savefig('angmoment_rotaxis_ratio_%s.svg' % idx)
+    plt.savefig('morphology_plots/angmoment_rotaxis_ratio_%s.svg' % idx)
 
     #-------------------------------------------------------------------------------------------
     #THIS SECTION CALCULATE THE KAPPA PARAMETER
@@ -285,7 +294,7 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     #THIS SECTION CALCULATES THE BULLOCK SPIN PARAMETER FOR BARYONIC MATTER
     spin_dist = scale_distance #The distance where we evaluate the Bullock spin parameter
 
-    bary_distance_to_com = np.sqrt(np.sum(bary_rel_coor_each**2))
+    bary_distance_to_com = np.sqrt(np.sum(bary_rel_coor_each**2,axis=1))
     bary_spin = bary_distance_to_com < spin_dist
     bary_spin_mass_each = np.array(bary_mass_each)[bary_spin]
     bary_spin_mass = np.sum(bary_spin_mass_each)
@@ -295,10 +304,13 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     bary_spin_angmoment_magnitude = np.sum(bary_angmoment**2)**0.5
 
     #Calculate the Bullock Spin Parameter. Note that this is spin*sqrt(G)
-    spin_param = bary_angmoment_magnitude/np.sqrt(2*spin_dist*bary_spin_mass**3)
+    spin_param = bary_spin_angmoment_magnitude/np.sqrt(2*spin_dist*bary_spin_mass**3)
 
     #Built-in function to calculate the regular spin parameter (from Peebles 1971, not from Bullock 2001)
-    ds = yt.load('RD0285/RD0285')
+    ds = yt.load(pfs[int(idx)])
+    add_particle_filter("stars", function=stars, filtered_type="all", requires=["particle_type","particle_mass"])
+    ds.add_particle_filter("stars")
+
     reg_spin = ds.sphere(com_coor_bary,(scale_distance,'code_length'))
     spin_param_yt = reg_spin.quantities.spin_parameter(use_gas = True, use_particles = True, particle_type='stars')
 
@@ -311,7 +323,7 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     output['spin_param'] = spin_param
     output['spin_param_yt'] = spin_param_yt
 
-    np.save('morphology/morphology_%s.npy' % idx,output)
+    np.save('morphology_data/morphology_%s.npy' % idx,output)
 
 
 
