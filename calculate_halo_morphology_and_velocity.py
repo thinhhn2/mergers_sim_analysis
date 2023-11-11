@@ -313,6 +313,7 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
 
     reg_spin = ds.sphere(com_coor_bary,(scale_distance,'code_length'))
     spin_param_yt = reg_spin.quantities.spin_parameter(use_gas = True, use_particles = True, particle_type='stars')
+    spin_param_yt = spin_param_yt.v.tolist()
 
     output = {}
     output['scale_distance'] = scale_distance
