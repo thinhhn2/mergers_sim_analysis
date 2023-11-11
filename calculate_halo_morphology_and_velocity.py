@@ -8,9 +8,92 @@ comm = MPI.COMM_WORLD
 rank = comm.rank
 nprocs = comm.size
 
+#-------------------------------------------------------------------------------------------
+#DEFINE FUNCTIONS
+
+def find_scale_distace(s_distance_to_angmoment,rvir, percent_lim = 0.99):
+    """
+    This function calculates the scale distance of the galaxy, which is defined as the distance
+    that encloses 99% (default value) of the stars in the Rvir region. 
+
+    Note that this is the distance from the rotational axis, not the distance from the center of mass
+    """
+    bin_dist = np.linspace(0,0.5*rvir,500)
+    n_star_distance = []
+    for i in range(1,len(bin_dist)):
+        n_star_bin_distance = len(s_distance_to_angmoment[(s_distance_to_angmoment>bin_dist[i-1]) & (s_distance_to_angmoment<=bin_dist[i])])
+        n_star_distance.append(n_star_bin_distance)
+
+    n_star_distance_cumsum = np.cumsum(n_star_distance)
+    n_star_distance_cumsum_percent = n_star_distance_cumsum/len(s_distance_to_angmoment)
+
+    #Find the distance that begins to enclose 99% of the stars in the Rvir region (i.e. scale distance)
+    scale_distance = bin_dist[1:][n_star_distance_cumsum_percent > percent_lim][0]
+
+    return scale_distance
+
+def find_scale_height(s_height,s_distance_to_angmoment,distance_start, distance_end, rvir, percent_lim=0.99):
+    """
+    This function calculates the scale height of each distance from the rotational axis (i.e. 
+    of each cylindrical shell). 
+
+    If we want to find the scale height for all stars in the galaxy, then distance_start = 0 and distance_end = scale_distance
+
+    Scale height is defined as the height that encloses 99% (default value) of the stars in the cylindrical shell.
+    """
+    s_height_distance = s_height[(s_distance_to_angmoment>distance_start) & (s_distance_to_angmoment<=distance_end)]
+    bin_height = np.linspace(0,0.5*rvir,500)
+    
+    n_star_height = []
+    for i in range(1,len(bin_height)):
+        n_star_bin_height = len(s_height_distance[(s_height_distance>bin_height[i-1]) & (s_height_distance<=bin_height[i])])
+        n_star_height.append(n_star_bin_height)
+    
+    n_star_height_cumsum = np.cumsum(n_star_height)
+
+    n_star_height_cumsum_percent = n_star_height_cumsum/len(s_height_distance)
+    #n_star_height_cumsum_percent = n_star_height_cumsum/n_star_height_cumsum[-1]
+    
+    scale_height = bin_height[1:][n_star_height_cumsum_percent > percent_lim][0]
+    
+    return scale_height
+
+def weighted_std(values, weights_list):
+    """
+    Return the weighted standard deviation.
+
+    values, weights -- NumPy ndarrays with the same shape.
+    """
+    average = np.average(values, weights=weights_list)
+    N = len(values)
+    # Fast and numerically precise:
+    variance = np.sum(weights_list*(values-average)**2)/((N-1)*np.sum(weights_list)/N)
+    return np.sqrt(variance)
+
+def find_average_and_error_of_bins(values, masses, s_galaxy_distance_to_angmoment, shell_dist):
+    bins_average = []
+    bins_error = []
+
+    for i in range(1,len(shell_dist)):
+        bins_value_each = np.array(values)[(s_galaxy_distance_to_angmoment>shell_dist[i-1]) & (s_galaxy_distance_to_angmoment<shell_dist[i])]
+        bins_mass_each = np.array(masses)[(s_galaxy_distance_to_angmoment>shell_dist[i-1]) & (s_galaxy_distance_to_angmoment<shell_dist[i])]
+        if len(bins_value_each) != 0:
+            bins_average.append(np.average(bins_value_each,weights=bins_mass_each))
+            bins_error.append(weighted_std(bins_value_each,bins_mass_each))
+        else:
+            bins_average.append(0)
+            bins_error.append(0)
+
+    shell_dist_ave = shell_dist[1:] - (shell_dist[1] - shell_dist[0])/2
+
+    return bins_average, bins_error, shell_dist_ave
+
+#-------------------------------------------------------------------------------------------
+#LOAD DATA
 tree = np.load('halotree_Thinh_structure_with_com.npy',allow_pickle=True).tolist()
 pfs = np.loadtxt('pfs_manual.dat',dtype='str')
 snapshot_idx = list(tree['0'].keys())
+#-------------------------------------------------------------------------------------------
 
 my_storage = {}
 for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage):
@@ -55,43 +138,12 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
 
     #THIS SECTION DETERMINES WHICH REGION OF THE HALO MOST OF THE GALAXY RESIDE IN 
     #SUBSECTION 1: WITH RESPECT TO THE DISTANCE TO THE ROTATIONAL AXIS
-    bin_dist = np.linspace(0,0.5*rvir,500)
-    n_star_distance = []
-    for i in range(1,len(bin_dist)):
-        n_star_bin_distance = len(s_distance_to_angmoment[(s_distance_to_angmoment>bin_dist[i-1]) & (s_distance_to_angmoment<=bin_dist[i])])
-        n_star_distance.append(n_star_bin_distance)
-
-    n_star_distance_cumsum = np.cumsum(n_star_distance)
-    n_star_distance_cumsum_percent = n_star_distance_cumsum/len(s_mass_each)
-
-    #Find the distance that begins to enclose 99% of the stars in the Rvir region (i.e. scale distance)
-    percent_lim = 0.99
-    scale_distance = bin_dist[1:][n_star_distance_cumsum_percent > percent_lim][0]
-
+    scale_distance = find_scale_distace(s_distance_to_angmoment,rvir)
     #Now we re-divide the galaxy into cylindrial shells from the Center of mass to distance99
     shell_dist = np.linspace(0,scale_distance,100)
 
     #SUBSECTION 2: WITH RESPECT TO THE HEIGHT OF THE DISK
     #WE WANT TO DETERMINE THE SCALE HEIGHT AS A FUNCITON OF DISTANCE
-    def find_scale_height(distance_start, distance_end):
-        """
-        This function calculates the scale height of each distance from the rotational axis (i.e. 
-        of each cylindrical shell) 
-        """
-        s_height_distance = s_height[(s_distance_to_angmoment>distance_start) & (s_distance_to_angmoment<=distance_end)]
-        bin_height = np.linspace(0,0.5*rvir,500)
-        
-        n_star_height = []
-        for i in range(1,len(bin_height)):
-            n_star_bin_height = len(s_height_distance[(s_height_distance>bin_height[i-1]) & (s_height_distance<=bin_height[i])])
-            n_star_height.append(n_star_bin_height)
-        
-        n_star_height_cumsum = np.cumsum(n_star_height)
-        n_star_height_cumsum_percent = n_star_height_cumsum/n_star_height_cumsum[-1]
-        
-        scale_height = bin_height[1:][n_star_height_cumsum_percent > percent_lim][0]
-        
-        return scale_height
 
     #If we want to find scale height as a function of distance, this is the code   
     #scale_height_list = np.array([]) 
@@ -100,24 +152,12 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     #    scale_height_list = np.append(scale_height_list, scale_height)
         
     #If we want to use one scale height for the whole galaxy, then 
-    scale_height_all = find_scale_height(0, scale_distance)
+    scale_height_all = find_scale_height(s_height,s_distance_to_angmoment,0, scale_distance, rvir)
 
     #Calculate the eccentricity of the galaxy, assuming it is an ellipse
     eccentricity = np.sqrt(1 - scale_height_all**2/scale_distance**2)    
 
     #The velocity dispersion of only stars
-    def weighted_std(values, weights_list):
-        """
-        Return the weighted standard deviation.
-
-        values, weights -- NumPy ndarrays with the same shape.
-        """
-        average = np.average(values, weights=weights_list)
-        N = len(values)
-        # Fast and numerically precise:
-        variance = np.sum(weights_list*(values-average)**2)/((N-1)*np.sum(weights_list)/N)
-        return np.sqrt(variance)
-
     s_dispersion = []
 
     for i in range(1,len(shell_dist)):
