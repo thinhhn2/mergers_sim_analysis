@@ -84,9 +84,7 @@ def find_average_and_error_of_bins(values, masses, s_galaxy_distance_to_angmomen
             bins_average.append(0)
             bins_error.append(0)
 
-    shell_dist_ave = shell_dist[1:] - (shell_dist[1] - shell_dist[0])/2
-
-    return bins_average, bins_error, shell_dist_ave
+    return bins_average, bins_error
 
 #-------------------------------------------------------------------------------------------
 #LOAD DATA
@@ -141,6 +139,7 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     scale_distance = find_scale_distace(s_distance_to_angmoment,rvir)
     #Now we re-divide the galaxy into cylindrial shells from the Center of mass to distance99
     shell_dist = np.linspace(0,scale_distance,100)
+    shell_dist_ave = shell_dist[1:] - (shell_dist[1] - shell_dist[0])/2 #the middle value for each bin
 
     #SUBSECTION 2: WITH RESPECT TO THE HEIGHT OF THE DISK
     #WE WANT TO DETERMINE THE SCALE HEIGHT AS A FUNCITON OF DISTANCE
@@ -201,21 +200,8 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     plt.yticks(fontsize=14)
     plt.savefig('velocity_rotaxis_histogram_%s.svg' % idx)
 
-    s_bin_galaxy_L_vel = []
-    s_bin_galaxy_L_vel_error = []
-
-    for i in range(1,len(shell_dist)):
-        s_bin_galaxy_L_vel_each = np.array(s_galaxy_L_vel_each)[(s_galaxy_distance_to_angmoment>shell_dist[i-1]) & (s_galaxy_distance_to_angmoment<shell_dist[i])]
-        s_bin_galaxy_mass_each = np.array(s_galaxy_mass_each)[(s_galaxy_distance_to_angmoment>shell_dist[i-1]) & (s_galaxy_distance_to_angmoment<shell_dist[i])]
-        if len(s_bin_galaxy_disk_vel_each) != 0:
-            s_bin_galaxy_L_vel.append(np.average(s_bin_galaxy_L_vel_each,weights=s_bin_galaxy_mass_each))
-            s_bin_galaxy_L_vel_error.append(weighted_std(s_bin_galaxy_L_vel_each,s_bin_galaxy_mass_each))
-        else:
-            s_bin_galaxy_L_vel.append(0)
-            s_bin_galaxy_L_vel_error.append(0)
-
-
-    shell_dist_ave = shell_dist[1:] - (shell_dist[1] - shell_dist[0])/2
+    #Calculate the bin values and errors
+    s_bin_galaxy_L_vel, s_bin_galaxy_L_vel_error = find_average_and_error_of_bins(s_galaxy_L_vel_each, s_galaxy_mass_each, s_galaxy_distance_to_angmoment, shell_dist)
 
     plt.errorbar(shell_dist_ave/rvir,s_bin_galaxy_L_vel,yerr = s_bin_galaxy_L_vel_error)
     plt.xlabel('r/Rvir', fontsize=14)
@@ -229,21 +215,8 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     s_galaxy_disk_vel_numerator = np.cross(s_galaxy_relative_vel_each,bary_angmoment_unitvec)
     s_galaxy_disk_vel_each = np.sum(s_galaxy_disk_vel_numerator**2,axis=1)**0.5
 
-    s_bin_galaxy_disk_vel = []
-    s_bin_galaxy_disk_vel_error = []
-
-    for i in range(1,len(shell_dist)):
-        s_bin_galaxy_disk_vel_each = np.array(s_galaxy_disk_vel_each)[(s_galaxy_distance_to_angmoment>shell_dist[i-1]) & (s_galaxy_distance_to_angmoment<shell_dist[i])]
-        s_bin_galaxy_mass_each = np.array(s_galaxy_mass_each)[(s_galaxy_distance_to_angmoment>shell_dist[i-1]) & (s_galaxy_distance_to_angmoment<shell_dist[i])]
-        if len(s_bin_galaxy_disk_vel_each) != 0:
-            s_bin_galaxy_disk_vel.append(np.average(s_bin_galaxy_disk_vel_each,weights=s_bin_galaxy_mass_each))
-            s_bin_galaxy_disk_vel_error.append(weighted_std(s_bin_galaxy_disk_vel_each,s_bin_galaxy_mass_each))
-        else:
-            s_bin_galaxy_disk_vel.append(0)
-            s_bin_galaxy_disk_vel_error.append(0)
-
-
-    shell_dist_ave = shell_dist[1:] - (shell_dist[1] - shell_dist[0])/2
+    #Calculate the bin values and errors
+    s_bin_galaxy_disk_vel, s_bin_galaxy_disk_vel_error = find_average_and_error_of_bins(s_galaxy_disk_vel_each, s_galaxy_mass_each, s_galaxy_distance_to_angmoment, shell_dist)
 
     plt.errorbar(shell_dist_ave/rvir,s_bin_galaxy_disk_vel,yerr = s_bin_galaxy_disk_vel_error)
     plt.xlabel('r/Rvir', fontsize=14)
@@ -251,27 +224,15 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
     plt.savefig('velocity_disk_%s.svg' % idx)
+
     #-------------------------------------------------------------------------------------------
     #THIS SECTION CALCULATES THE RATIO BETWEEN THE L-COMPONENT AND THE TOTAL MAGNITUDE OF THE VELOCITY 
     s_galaxy_vel_magnitude_each = np.sum(s_galaxy_relative_vel_each**2,axis=1)**0.5
     s_galaxy_vel_L_ratio_each = np.abs(s_galaxy_L_vel_each/s_galaxy_vel_magnitude_each)
 
-    s_bin_galaxy_vel_L_ratio = []
-    s_bin_galaxy_vel_L_ratio_error = []
+    #Calculate the bin values and errors
+    s_bin_galaxy_vel_L_ratio, s_bin_galaxy_vel_L_ratio_error = find_average_and_error_of_bins(s_galaxy_vel_L_ratio_each, s_galaxy_mass_each, s_galaxy_distance_to_angmoment, shell_dist)
 
-    shell_dist = np.linspace(0,scale_distance,100)
-    for i in range(1,len(shell_dist)):
-        s_bin_galaxy_vel_L_ratio_each = np.array(s_galaxy_vel_L_ratio_each)[(s_galaxy_distance_to_angmoment>shell_dist[i-1]) & (s_galaxy_distance_to_angmoment<shell_dist[i])]
-        s_bin_galaxy_mass_each = np.array(s_galaxy_mass_each)[(s_galaxy_distance_to_angmoment>shell_dist[i-1]) & (s_galaxy_distance_to_angmoment<shell_dist[i])]
-        if len(s_bin_galaxy_vel_L_ratio_each) != 0:
-            s_bin_galaxy_vel_L_ratio.append(np.average(s_bin_galaxy_vel_L_ratio_each,weights=s_bin_galaxy_mass_each))
-            s_bin_galaxy_vel_L_ratio_error.append(weighted_std(s_bin_galaxy_vel_L_ratio_each,s_bin_galaxy_mass_each))
-        else:
-            s_bin_galaxy_vel_L_ratio.append(0)
-            s_bin_galaxy_vel_L_ratio_error.append(0)
-
-
-    shell_dist_ave = shell_dist[1:] - (shell_dist[1] - shell_dist[0])/2
     plt.errorbar(shell_dist_ave/rvir,s_bin_galaxy_vel_L_ratio,yerr = s_bin_galaxy_vel_L_ratio_error)
     plt.xlabel('r/Rvir', fontsize=14)
     plt.ylabel(r'$v_{L}/|v|$', fontsize=14)
@@ -294,21 +255,9 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     s_galaxy_angmoment_magnitude_each = np.sqrt(np.sum(s_galaxy_angmoment_each**2,axis=1))
     s_galaxy_angmoment_L_ratio = s_galaxy_L_angmoment_each/s_galaxy_angmoment_magnitude_each
 
-    s_bin_galaxy_angmoment_L_ratio = []
-    s_bin_galaxy_angmoment_L_ratio_error = []
+    #Calculate the bin values and errors
+    s_bin_galaxy_angmoment_L_ratio, s_bin_galaxy_angmoment_L_ratio_error = find_average_and_error_of_bins(s_galaxy_angmoment_L_ratio, s_galaxy_mass_each, s_galaxy_distance_to_angmoment, shell_dist)
 
-    for i in range(1,len(shell_dist)):
-        s_bin_galaxy_angmoment_L_ratio_each = np.array(s_galaxy_angmoment_L_ratio)[(s_galaxy_distance_to_angmoment>shell_dist[i-1]) & (s_galaxy_distance_to_angmoment<shell_dist[i])]
-        s_bin_galaxy_mass_each = np.array(s_galaxy_mass_each)[(s_galaxy_distance_to_angmoment>shell_dist[i-1]) & (s_galaxy_distance_to_angmoment<shell_dist[i])]
-        if len(s_bin_galaxy_angmoment_L_ratio_each) != 0:
-            s_bin_galaxy_angmoment_L_ratio.append(np.average(s_bin_galaxy_angmoment_L_ratio_each,weights=s_bin_galaxy_mass_each))
-            s_bin_galaxy_angmoment_L_ratio_error.append(weighted_std(s_bin_galaxy_angmoment_L_ratio_each,s_bin_galaxy_mass_each))
-        else:
-            s_bin_galaxy_angmoment_L_ratio.append(0)
-            s_bin_galaxy_angmoment_L_ratio_error.append(0)
-
-
-    shell_dist_ave = shell_dist[1:] - (shell_dist[1] - shell_dist[0])/2
     plt.errorbar(shell_dist_ave/rvir,s_bin_galaxy_angmoment_L_ratio,yerr = s_bin_galaxy_angmoment_L_ratio_error)
     plt.xlabel('r/Rvir', fontsize=14)
     plt.ylabel(r'|$J_{L}$|/|$J$|', fontsize=14)
