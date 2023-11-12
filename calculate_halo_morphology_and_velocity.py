@@ -16,14 +16,14 @@ def stars(pfilter, data):
      filter_stars = np.logical_and(data["all", "particle_type"] == 2, data["all", "particle_mass"].to('Msun') > 1)
      return filter_stars
 
-def find_scale_distace(s_distance_to_angmoment,rvir, percent_lim = 0.99):
+def find_scale_distace(s_distance_to_angmoment,rvir, percent_lim = 0.9):
     """
     This function calculates the scale distance of the galaxy, which is defined as the distance
-    that encloses 99% (default value) of the stars in the Rvir region. 
+    that encloses 90% (default value) of the stars in the Rvir region. 
 
     Note that this is the distance from the rotational axis, not the distance from the center of mass
     """
-    bin_dist = np.linspace(0,0.5*rvir,500)
+    bin_dist = np.linspace(0,rvir,500)
     n_star_distance = []
     for i in range(1,len(bin_dist)):
         n_star_bin_distance = len(s_distance_to_angmoment[(s_distance_to_angmoment>bin_dist[i-1]) & (s_distance_to_angmoment<=bin_dist[i])])
@@ -38,17 +38,17 @@ def find_scale_distace(s_distance_to_angmoment,rvir, percent_lim = 0.99):
 
     return scale_distance
 
-def find_scale_height(s_height,s_distance_to_angmoment,distance_start, distance_end, rvir, percent_lim=0.99):
+def find_scale_height(s_height,s_distance_to_angmoment,distance_start, distance_end, rvir, percent_lim=0.9):
     """
     This function calculates the scale height of each distance from the rotational axis (i.e. 
     of each cylindrical shell). 
 
     If we want to find the scale height for all stars in the galaxy, then distance_start = 0 and distance_end = scale_distance
 
-    Scale height is defined as the height that encloses 99% (default value) of the stars in the cylindrical shell.
+    Scale height is defined as the height that encloses 90% (default value) of the stars in the cylindrical shell.
     """
     s_height_distance = s_height[(s_distance_to_angmoment>distance_start) & (s_distance_to_angmoment<=distance_end)]
-    bin_height = np.linspace(0,0.5*rvir,500)
+    bin_height = np.linspace(0,rvir,500)
     
     n_star_height = []
     for i in range(1,len(bin_height)):
