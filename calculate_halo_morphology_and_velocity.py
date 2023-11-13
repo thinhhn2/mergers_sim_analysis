@@ -276,7 +276,7 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
 
     #-------------------------------------------------------------------------------------------
     #THIS SECTION CALCULATE THE KAPPA PARAMETER
-    #KAPPA PARAMETER < 0.5 -> DISK. KAPPA PARAMETER >= 0.5 -> SPHEROID
+    #KAPPA PARAMETER > 0.5 -> DISK. KAPPA PARAMETER <= 0.5 -> SPHEROID
     s_galaxy_K_each = 0.5*s_galaxy_mass_each*s_galaxy_vel_magnitude_each**2
     s_galaxy_K = np.sum(s_galaxy_K_each)
 
