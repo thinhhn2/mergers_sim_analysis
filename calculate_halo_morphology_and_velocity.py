@@ -183,12 +183,14 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     #Normalize by the virial radius (normalize from 0 to 1)
     shell_dist_norm = shell_dist/rvir
 
+    plt.figure(figsize=(8,6))
     plt.stairs(s_dispersion,shell_dist_norm)
     plt.ylabel('Velocity dispersion of stars (km/s)',fontsize=14)
     plt.xlabel('r/Rvir',fontsize=14)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
-    plt.savefig('morphology_plots/velocity_dispersion_%s.svg' % idx)
+    plt.savefig('morphology_plots/velocity_dispersion_%s.png' % idx)
+    plt.close()
 
     #-------------------------------------------------------------------------------------------
     #THIS SECTION CALCULATES THE ROTATIONAL AXIS COMPONENT OF THE VELOCITY 
@@ -201,23 +203,27 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     s_galaxy_distance_to_angmoment = np.array(s_distance_to_angmoment)[s_galaxy]
     s_galaxy_L_vel_each = np.dot(s_galaxy_relative_vel_each,bary_angmoment_unitvec)
 
+    plt.figure(figsize=(8,6))
     from matplotlib.colors import LogNorm
     plt.hist2d(s_galaxy_distance_to_angmoment/rvir,s_galaxy_L_vel_each,bins=[200,200],norm=LogNorm())
     plt.xlabel('r/Rvir',fontsize=14)
     plt.ylabel(r'$v_{L}$ (km/s)',fontsize=14)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
-    plt.savefig('morphology_plots/velocity_rotaxis_histogram_%s.svg' % idx)
+    plt.savefig('morphology_plots/velocity_rotaxis_histogram_%s.png' % idx)
+    plt.close()
 
     #Calculate the bin values and errors
     s_bin_galaxy_L_vel, s_bin_galaxy_L_vel_error = find_average_and_error_of_bins(s_galaxy_L_vel_each, s_galaxy_mass_each, s_galaxy_distance_to_angmoment, shell_dist)
 
+    plt.figure(figsize=(8,6))
     plt.errorbar(shell_dist_ave/rvir,s_bin_galaxy_L_vel,yerr = s_bin_galaxy_L_vel_error)
     plt.xlabel('r/Rvir', fontsize=14)
     plt.ylabel(r'$v_{L}$ (km/s)', fontsize=14)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
-    plt.savefig('morphology_plots/velocity_rotaxis_%s.svg' % idx)
+    plt.savefig('morphology_plots/velocity_rotaxis_%s.png' % idx)
+    plt.close()
     #--------------------------------------------------------------------------------------------
     #THIS SECTION CALCULATES THE DISK-COMPONENT OF THE VELOCITY (PERPENDICULAR TO THE ROTATIONAL-AXIS COMPONENT)
 
@@ -227,12 +233,14 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     #Calculate the bin values and errors
     s_bin_galaxy_disk_vel, s_bin_galaxy_disk_vel_error = find_average_and_error_of_bins(s_galaxy_disk_vel_each, s_galaxy_mass_each, s_galaxy_distance_to_angmoment, shell_dist)
 
+    plt.figure(figsize=(8,6))
     plt.errorbar(shell_dist_ave/rvir,s_bin_galaxy_disk_vel,yerr = s_bin_galaxy_disk_vel_error)
     plt.xlabel('r/Rvir', fontsize=14)
     plt.ylabel(r'$v_{disk-plane}$ (km/s)', fontsize=14)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
-    plt.savefig('morphology_plots/velocity_disk_%s.svg' % idx)
+    plt.savefig('morphology_plots/velocity_disk_%s.png' % idx)
+    plt.close()
 
     #-------------------------------------------------------------------------------------------
     #THIS SECTION CALCULATES THE RATIO BETWEEN THE L-COMPONENT AND THE TOTAL MAGNITUDE OF THE VELOCITY 
@@ -242,12 +250,14 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     #Calculate the bin values and errors
     s_bin_galaxy_vel_L_ratio, s_bin_galaxy_vel_L_ratio_error = find_average_and_error_of_bins(s_galaxy_vel_L_ratio_each, s_galaxy_mass_each, s_galaxy_distance_to_angmoment, shell_dist)
 
+    plt.figure(figsize=(8,6))
     plt.errorbar(shell_dist_ave/rvir,s_bin_galaxy_vel_L_ratio,yerr = s_bin_galaxy_vel_L_ratio_error)
     plt.xlabel('r/Rvir', fontsize=14)
     plt.ylabel(r'$v_{L}/|v|$', fontsize=14)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
-    plt.savefig('morphology_plots/velocity_rotaxis_ratio_%s.svg' % idx)
+    plt.savefig('morphology_plots/velocity_rotaxis_ratio_%s.png' % idx)
+    plt.close()
 
     #-------------------------------------------------------------------------------------------
     #THIS SECTION CALCULATES THE RATIO BETWEEN THE TOTAL ANGULAR MOMENTUM VS THE L-COMPONENT ANGULAR MOMENTUM
@@ -267,12 +277,14 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     #Calculate the bin values and errors
     s_bin_galaxy_angmoment_L_ratio, s_bin_galaxy_angmoment_L_ratio_error = find_average_and_error_of_bins(s_galaxy_angmoment_L_ratio, s_galaxy_mass_each, s_galaxy_distance_to_angmoment, shell_dist)
 
+    plt.figure(figsize=(8,6))
     plt.errorbar(shell_dist_ave/rvir,s_bin_galaxy_angmoment_L_ratio,yerr = s_bin_galaxy_angmoment_L_ratio_error)
     plt.xlabel('r/Rvir', fontsize=14)
     plt.ylabel(r'|$J_{L}$|/|$J$|', fontsize=14)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
-    plt.savefig('morphology_plots/angmoment_rotaxis_ratio_%s.svg' % idx)
+    plt.savefig('morphology_plots/angmoment_rotaxis_ratio_%s.png' % idx)
+    plt.close()
 
     #-------------------------------------------------------------------------------------------
     #THIS SECTION CALCULATE THE KAPPA PARAMETER
@@ -295,7 +307,7 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     spin_dist = scale_distance #The distance where we evaluate the Bullock spin parameter
 
     bary_distance_to_com = np.sqrt(np.sum(bary_rel_coor_each**2,axis=1))
-    bary_spin = bary_distance_to_com < spin_dist
+    bary_spin = bary_distance_to_com < spin_dist #this should be in spherical coordinates, not cylindrical
     bary_spin_mass_each = np.array(bary_mass_each)[bary_spin]
     bary_spin_mass = np.sum(bary_spin_mass_each)
 
