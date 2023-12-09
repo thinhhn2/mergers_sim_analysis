@@ -129,7 +129,8 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     bary_angmoment = np.sum(bary_angmoment_each,axis=0)
     bary_angmoment_unitvec = bary_angmoment/np.sum(bary_angmoment**2)**0.5
 
-    rvir = tree['0'][idx]['Rvir']
+    rvir_codelength = tree['0'][idx]['Rvir']*ds.units.code_length
+    rvir = rvir_codelength.to('kpc').v.tolist()
 
     #Distance from the particles to the rotational axis
     numerator = np.cross(bary_rel_coor_each,bary_angmoment_unitvec)
@@ -181,12 +182,12 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
 
     s_dispersion = np.nan_to_num(np.array(s_dispersion))
     #Normalize by the virial radius (normalize from 0 to 1)
-    shell_dist_norm = shell_dist/rvir
+    #shell_dist_norm = shell_dist/rvir
 
     plt.figure(figsize=(8,6))
-    plt.stairs(s_dispersion,shell_dist_norm)
+    plt.stairs(s_dispersion,shell_dist)
     plt.ylabel('Velocity dispersion of stars (km/s)',fontsize=14)
-    plt.xlabel('r/Rvir',fontsize=14)
+    plt.xlabel('r (kpc)',fontsize=14)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
     plt.savefig('morphology_plots/velocity_dispersion_%s.png' % idx)
@@ -205,8 +206,8 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
 
     plt.figure(figsize=(8,6))
     from matplotlib.colors import LogNorm
-    plt.hist2d(s_galaxy_distance_to_angmoment/rvir,s_galaxy_L_vel_each,bins=[200,200],norm=LogNorm())
-    plt.xlabel('r/Rvir',fontsize=14)
+    plt.hist2d(s_galaxy_distance_to_angmoment,s_galaxy_L_vel_each,bins=[200,200],norm=LogNorm())
+    plt.xlabel('r (kpc)',fontsize=14)
     plt.ylabel(r'$v_{L}$ (km/s)',fontsize=14)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
@@ -217,8 +218,8 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     s_bin_galaxy_L_vel, s_bin_galaxy_L_vel_error = find_average_and_error_of_bins(s_galaxy_L_vel_each, s_galaxy_mass_each, s_galaxy_distance_to_angmoment, shell_dist)
 
     plt.figure(figsize=(8,6))
-    plt.errorbar(shell_dist_ave/rvir,s_bin_galaxy_L_vel,yerr = s_bin_galaxy_L_vel_error)
-    plt.xlabel('r/Rvir', fontsize=14)
+    plt.errorbar(shell_dist_ave,s_bin_galaxy_L_vel,yerr = s_bin_galaxy_L_vel_error)
+    plt.xlabel('r (kpc)', fontsize=14)
     plt.ylabel(r'$v_{L}$ (km/s)', fontsize=14)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
@@ -234,8 +235,8 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     s_bin_galaxy_disk_vel, s_bin_galaxy_disk_vel_error = find_average_and_error_of_bins(s_galaxy_disk_vel_each, s_galaxy_mass_each, s_galaxy_distance_to_angmoment, shell_dist)
 
     plt.figure(figsize=(8,6))
-    plt.errorbar(shell_dist_ave/rvir,s_bin_galaxy_disk_vel,yerr = s_bin_galaxy_disk_vel_error)
-    plt.xlabel('r/Rvir', fontsize=14)
+    plt.errorbar(shell_dist_ave,s_bin_galaxy_disk_vel,yerr = s_bin_galaxy_disk_vel_error)
+    plt.xlabel('r (kpc)', fontsize=14)
     plt.ylabel(r'$v_{disk-plane}$ (km/s)', fontsize=14)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
@@ -251,8 +252,8 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     s_bin_galaxy_vel_L_ratio, s_bin_galaxy_vel_L_ratio_error = find_average_and_error_of_bins(s_galaxy_vel_L_ratio_each, s_galaxy_mass_each, s_galaxy_distance_to_angmoment, shell_dist)
 
     plt.figure(figsize=(8,6))
-    plt.errorbar(shell_dist_ave/rvir,s_bin_galaxy_vel_L_ratio,yerr = s_bin_galaxy_vel_L_ratio_error)
-    plt.xlabel('r/Rvir', fontsize=14)
+    plt.errorbar(shell_dist_ave,s_bin_galaxy_vel_L_ratio,yerr = s_bin_galaxy_vel_L_ratio_error)
+    plt.xlabel('r (kpc)', fontsize=14)
     plt.ylabel(r'$v_{L}/|v|$', fontsize=14)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
@@ -278,8 +279,8 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     s_bin_galaxy_angmoment_L_ratio, s_bin_galaxy_angmoment_L_ratio_error = find_average_and_error_of_bins(s_galaxy_angmoment_L_ratio, s_galaxy_mass_each, s_galaxy_distance_to_angmoment, shell_dist)
 
     plt.figure(figsize=(8,6))
-    plt.errorbar(shell_dist_ave/rvir,s_bin_galaxy_angmoment_L_ratio,yerr = s_bin_galaxy_angmoment_L_ratio_error)
-    plt.xlabel('r/Rvir', fontsize=14)
+    plt.errorbar(shell_dist_ave,s_bin_galaxy_angmoment_L_ratio,yerr = s_bin_galaxy_angmoment_L_ratio_error)
+    plt.xlabel('r (kpc)', fontsize=14)
     plt.ylabel(r'|$J_{L}$|/|$J$|', fontsize=14)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
@@ -323,7 +324,7 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     add_particle_filter("stars", function=stars, filtered_type="all", requires=["particle_type","particle_mass"])
     ds.add_particle_filter("stars")
 
-    reg_spin = ds.sphere(com_coor_bary,(scale_distance,'code_length'))
+    reg_spin = ds.sphere(com_coor_bary,(scale_distance,'kpc'))
     spin_param_yt = reg_spin.quantities.spin_parameter(use_gas = True, use_particles = True, particle_type='stars')
     spin_param_yt = spin_param_yt.v.tolist()
 

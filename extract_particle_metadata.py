@@ -29,22 +29,22 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     add_particle_filter("stars", function=stars, filtered_type="all", requires=["particle_type","particle_mass"])
     ds.add_particle_filter("stars")
 
-    com_coor_star = reg.quantities.center_of_mass(use_gas = False, use_particles = True, particle_type='stars').to('unitary').v
+    com_coor_star = reg.quantities.center_of_mass(use_gas = False, use_particles = True, particle_type='stars').to('kpc').v
     com_vel_star = reg.quantities.bulk_velocity(use_gas = False, use_particles = True, particle_type='stars').to('km/s').v
 
-    com_coor_bary = reg.quantities.center_of_mass(use_gas = True, use_particles = True, particle_type='stars').to('unitary').v
+    com_coor_bary = reg.quantities.center_of_mass(use_gas = True, use_particles = True, particle_type='stars').to('kpc').v
     com_vel_bary = reg.quantities.bulk_velocity(use_gas = True, use_particles = True, particle_type='stars').to('km/s').v
 
     #Calculating stars' metadata
     s_mass_each = reg[("stars", "particle_mass")].in_units("Msun").v.tolist()
-    s_coor_each = reg[("stars", "particle_position")].in_units("code_length").v.tolist()
+    s_coor_each = reg[("stars", "particle_position")].in_units("kpc").v.tolist()
     s_vel_each = reg[("stars", "particle_velocity")].in_units("km/s").v.tolist()
 
     #Calculating gas' metadata
     g_mass_each = reg[("gas","cell_mass")].in_units("Msun").v.tolist()
-    g_x_each = reg[("gas","x")].in_units("code_length").v.tolist()
-    g_y_each = reg[("gas","y")].in_units("code_length").v.tolist()
-    g_z_each = reg[("gas","z")].in_units("code_length").v.tolist()
+    g_x_each = reg[("gas","x")].in_units("kpc").v.tolist()
+    g_y_each = reg[("gas","y")].in_units("kpc").v.tolist()
+    g_z_each = reg[("gas","z")].in_units("kpc").v.tolist()
     g_velx_each = reg[("gas","velocity_x")].in_units("km/s").v.tolist()
     g_vely_each = reg[("gas","velocity_y")].in_units("km/s").v.tolist()
     g_velz_each = reg[("gas","velocity_z")].in_units("km/s").v.tolist()
