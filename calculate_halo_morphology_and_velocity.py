@@ -18,15 +18,15 @@ def stars(pfilter, data):
 
 def find_scale_distace(s_distance_to_angmoment,rvir, s_mass_each, percent_lim = 0.5):
     """
-    This function calculates the stellar half-mass radius of the galaxy, which is defined as the distance
-    that encloses 50% of the stellar mass in the Rvir region. 
+    This function calculates the stellar half-mass radius (or any other scale radius) of the galaxy, which is defined as the distance
+    that encloses 50% (default) of the stellar mass in the Rvir region. 
 
     Note that this is the distance from the rotational axis, not the distance from the center of mass
     """
     bin_dist = np.linspace(0,rvir,500)
     n_star_distance = []
     for i in range(1,len(bin_dist)):
-        n_star_bin_distance = np.sum(s_mass_each[(s_distance_to_angmoment>bin_dist[i-1]) & (s_distance_to_angmoment<=bin_dist[i])])
+        n_star_bin_distance = np.sum(np.array(s_mass_each)[(s_distance_to_angmoment>bin_dist[i-1]) & (s_distance_to_angmoment<=bin_dist[i])])
         n_star_distance.append(n_star_bin_distance)
 
     n_star_distance_cumsum = np.cumsum(n_star_distance)
@@ -40,15 +40,15 @@ def find_scale_distace(s_distance_to_angmoment,rvir, s_mass_each, percent_lim = 
 
 def find_scale_height(s_height,s_distance_to_angmoment,distance_start, distance_end, rvir, s_mass_each, percent_lim=0.9):
     """
-    This function calculates the stellar half-mass height of each distance from the rotational axis (i.e. 
+    This function calculates the stellar half-mass height (or any other scale height) of each distance from the rotational axis (i.e. 
     of each cylindrical shell). 
 
     If we want to find the scale height for all stars in the galaxy, then distance_start = 0 and distance_end = scale_distance
 
-    Stellar half-mass height is defined as the height that encloses 50% of the stellar mass in the cylindrical shell.
+    Stellar half-mass height is defined as the height that encloses 50% (default) of the stellar mass in the cylindrical shell.
     """
     s_height_distance = s_height[(s_distance_to_angmoment>distance_start) & (s_distance_to_angmoment<=distance_end)]
-    s_mass_each_distance = s_mass_each[(s_distance_to_angmoment>distance_start) & (s_distance_to_angmoment<=distance_end)]
+    s_mass_each_distance = np.array(s_mass_each)[(s_distance_to_angmoment>distance_start) & (s_distance_to_angmoment<=distance_end)]
     bin_height = np.linspace(0,rvir,500)
     
     n_star_height = []
@@ -102,6 +102,10 @@ snapshot_idx = list(tree['0'].keys())
 my_storage = {}
 for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage):
 
+    ds = yt.load(pfs[int(idx)])
+    add_particle_filter("stars", function=stars, filtered_type="all", requires=["particle_type","particle_mass"])
+    ds.add_particle_filter("stars")
+
     star_data = np.load('metadata/stars_%s.npy' % idx,allow_pickle=True).tolist()
     gas_data = np.load('metadata/gas_%s.npy' % idx,allow_pickle=True).tolist()
     bary_data = np.load('metadata/bary_%s.npy' % idx,allow_pickle=True).tolist()
@@ -146,7 +150,8 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
 
     #THIS SECTION DETERMINES WHICH REGION OF THE HALO MOST OF THE GALAXY RESIDE IN 
     #SUBSECTION 1: WITH RESPECT TO THE DISTANCE TO THE ROTATIONAL AXIS
-    scale_distance = find_scale_distace(s_distance_to_angmoment,rvir,s_mass_each)
+    halfmass_distance = find_scale_distace(s_distance_to_angmoment,rvir,s_mass_each, percent_lim=0.5)
+    scale_distance = find_scale_distace(s_distance_to_angmoment,rvir,s_mass_each, percent_lim=0.9)
     #Now we re-divide the galaxy into cylindrial shells from the Center of mass to distance99
     shell_dist = np.linspace(0,scale_distance,100)
     shell_dist_ave = shell_dist[1:] - (shell_dist[1] - shell_dist[0])/2 #the middle value for each bin
@@ -161,7 +166,8 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     #    scale_height_list = np.append(scale_height_list, scale_height)
         
     #If we want to use one scale height for the whole galaxy, then 
-    scale_height_all = find_scale_height(s_height,s_distance_to_angmoment,0, scale_distance, rvir, s_mass_each)
+    scale_height_all = find_scale_height(s_height,s_distance_to_angmoment,0, scale_distance, rvir, s_mass_each, percent_lim=0.9)
+    halfmass_height_all = find_scale_height(s_height,s_distance_to_angmoment,0, scale_distance, rvir, s_mass_each, percent_lim=0.5)
 
     #Calculate the eccentricity of the galaxy, assuming it is an ellipse
     eccentricity = np.sqrt(1 - scale_height_all**2/scale_distance**2)    
@@ -320,17 +326,15 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     spin_param = bary_spin_angmoment_magnitude/np.sqrt(2*spin_dist*bary_spin_mass**3)
 
     #Built-in function to calculate the regular spin parameter (from Peebles 1971, not from Bullock 2001)
-    ds = yt.load(pfs[int(idx)])
-    add_particle_filter("stars", function=stars, filtered_type="all", requires=["particle_type","particle_mass"])
-    ds.add_particle_filter("stars")
-
     reg_spin = ds.sphere(com_coor_bary,(scale_distance,'kpc'))
     spin_param_yt = reg_spin.quantities.spin_parameter(use_gas = True, use_particles = True, particle_type='stars')
     spin_param_yt = spin_param_yt.v.tolist()
 
     output = {}
     output['scale_distance'] = scale_distance
+    output['halfmass_distance'] = halfmass_distance
     output['scale_height'] = scale_height_all
+    output['halfmass_height'] = halfmass_height_all
     output['eccentricity'] = eccentricity
     output['kapppa_param'] = kappa_param
     output['dist_barycom_starcom'] = dist_barycom_starcom
