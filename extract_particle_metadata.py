@@ -62,8 +62,8 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     if code_name == 'GADGET3':
         ds = yt.load(pfs[int(idx)],unit_base = {"length": (1.0, "Mpccm/h")})
 
-        coor = tree['0'][idx]['coor']*60
-        rvir = tree['0'][idx]['Rvir']*60
+        coor = tree['0'][idx]['coor']
+        rvir = tree['0'][idx]['Rvir']
 
         reg = ds.sphere(coor,(rvir,'code_length'))
 
