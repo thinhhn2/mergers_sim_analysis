@@ -97,14 +97,19 @@ def find_average_and_error_of_bins(values, masses, s_galaxy_distance_to_angmomen
 tree = np.load('halotree_Thinh_structure_with_com.npy',allow_pickle=True).tolist()
 pfs = np.loadtxt('pfs_manual.dat',dtype='str')
 snapshot_idx = list(tree['0'].keys())
+code_name = 'GADGET3' #choose from ENZO, GADGET3, etc
 #-------------------------------------------------------------------------------------------
 
 my_storage = {}
 for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage):
 
-    ds = yt.load(pfs[int(idx)])
-    add_particle_filter("stars", function=stars, filtered_type="all", requires=["particle_type","particle_mass"])
-    ds.add_particle_filter("stars")
+    if code_name == 'ENZO':
+        ds = yt.load(pfs[int(idx)])
+        add_particle_filter("stars", function=stars, filtered_type="all", requires=["particle_type","particle_mass"])
+        ds.add_particle_filter("stars")
+    
+    if code_name == 'GADGET3':
+        ds = yt.load(pfs[int(idx)],unit_base = {"length": (1.0, "Mpccm/h")})
 
     star_data = np.load('metadata/stars_%s.npy' % idx,allow_pickle=True).tolist()
     gas_data = np.load('metadata/gas_%s.npy' % idx,allow_pickle=True).tolist()
