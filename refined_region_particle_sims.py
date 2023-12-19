@@ -1,5 +1,6 @@
 import yt
 import numpy as np
+import sys,os
 
 yt.enable_parallelism()
 from mpi4py import MPI
@@ -148,56 +149,95 @@ def all_refined_region(r_x,r_y,r_z,lr_x,lr_y,lr_z,spacing):
                     
     return [np.array([min_x,min_y,min_z]),np.array([max_x,max_y,max_z])]
 
-gs = np.loadtxt('pfs_manual.dat',dtype=str)
 
-#Runnning parallel to obtain the refined region for each snapshot
-my_storage = {}
+def boundary_search_all_snapshots(code_name, lim_index, directory):
+    """
+    This function runs the all_refined_region function for all snapshots in the simulation.
 
-for sto, snapshot in yt.parallel_objects(gs, nprocs-1, storage = my_storage):
-    ds = yt.load(snapshot)
-    #Set the spacing to be 1/100000 of the box size
-    spacing = ds.domain_right_edge.to('code_length').v[0]/100000
+    INPUT:
+    code_name (string): specify the code name of the simulation (ENZO, GADGET3, etc.)
 
-    reg = ds.all_data()
-    
-    #Obtain the less-refined particles' coordinates
-    lr_x = reg[('PartType5','particle_position_x')].to('code_length').v
-    lr_y = reg[('PartType5','particle_position_y')].to('code_length').v
-    lr_z = reg[('PartType5','particle_position_z')].to('code_length').v
-    lr_m = reg[('PartType5','Masses')].to('Msun').v
-    
-    #Obtain the nth-most refined particles' coordinate (if the most refined particle is too restrictive)
-    #1st-most -> index = 0, 2nd-most -> index = 1, 3rd-most -> index = 2, etc
-    lim_index = 1
-    
+    lim_index (integer): Obtain the nth-most refined particles' coordinate (if the most refined particle is too restrictive)
+        1st-most -> index = 0, 2nd-most -> index = 1, 3rd-most -> index = 2, etc.
+
+    dir: the directory of all the snapshots
+    """
+    os.chdir(directory)
+
+    gs = np.loadtxt('pfs_manual.dat',dtype=str)
+
+    #Runnning parallel to obtain the refined region for each snapshot
+    my_storage = {}
+
+    for sto, snapshot in yt.parallel_objects(gs, nprocs-1, storage = my_storage):
+        ds = yt.load(snapshot)
+        #Set the spacing to be 1/100000 of the box size
+        spacing = ds.domain_right_edge.to('code_length').v[0]/100000
+
+        reg = ds.all_data()
+        
+        if code_name == 'GADGET3' or code_name == 'GEAR':
+            #Obtain the less-refined particles' coordinates
+            lr_x = reg[('PartType5','particle_position_x')].to('code_length').v
+            lr_y = reg[('PartType5','particle_position_y')].to('code_length').v
+            lr_z = reg[('PartType5','particle_position_z')].to('code_length').v
+            lr_m = reg[('PartType5','Masses')].to('Msun').v
+        
+        if code_name == 'AREPO' or code_name == 'GIZMO':
+            #Obtain the less-refined particles' coordinates
+            lr_x = reg[('PartType2','particle_position_x')].to('code_length').v
+            lr_y = reg[('PartType2','particle_position_y')].to('code_length').v
+            lr_z = reg[('PartType2','particle_position_z')].to('code_length').v
+            lr_m = reg[('PartType2','Masses')].to('Msun').v
+        
+        if lim_index == 0:
+            if code_name == 'GADGET3' or code_name == 'AREPO' or code_name == 'GIZMO':
+                #Obtain the most refined particles' coordinate
+                r_x = reg[('PartType1','particle_position_x')].to('code_length').v
+                r_y = reg[('PartType1','particle_position_y')].to('code_length').v
+                r_z = reg[('PartType1','particle_position_z')].to('code_length').v
+            if code_name == 'GEAR':
+                #Obtain the most refined particles' coordinate
+                r_x = reg[('PartType2','particle_position_x')].to('code_length').v
+                r_y = reg[('PartType2','particle_position_y')].to('code_length').v
+                r_z = reg[('PartType2','particle_position_z')].to('code_length').v
+
+        
+        if lim_index > 0:
+            #The other nth-most refined particles are taken in the less-refined arrays
+            mlim = np.sort(np.array(list(set(lr_m))))[lim_index-1]
+            r_x = lr_x[lr_m <= mlim]
+            r_y = lr_y[lr_m <= mlim]
+            r_z = lr_z[lr_m <= mlim]
+            #after obtaining the nth-most refined particles, the rest are less-refined
+            lr_x = lr_x[lr_m > mlim]
+            lr_y = lr_y[lr_m > mlim]
+            lr_z = lr_z[lr_m > mlim]
+        
+        boundary = all_refined_region(r_x, r_y, r_z, lr_x, lr_y, lr_z,spacing=spacing)
+        
+        sto.result = {}
+        sto.result[0] = snapshot
+        sto.result[1] = boundary
+
+    output = {}
     if lim_index == 0:
-        #Obtain the most refined particles' coordinate
-        r_x = reg[('PartType1','particle_position_x')].to('code_length').v
-        r_y = reg[('PartType1','particle_position_y')].to('code_length').v
-        r_z = reg[('PartType1','particle_position_z')].to('code_length').v
-    
-    if lim_index > 0:
-        #The other nth-most refined particles are taken in the less-refined arrays
-        mlim = np.sort(np.array(list(set(lr_m))))[lim_index-1]
-        r_x = lr_x[lr_m <= mlim]
-        r_y = lr_y[lr_m <= mlim]
-        r_z = lr_z[lr_m <= mlim]
-        #after obtaining the nth-most refined particles, the rest are less-refined
-        lr_x = lr_x[lr_m > mlim]
-        lr_y = lr_y[lr_m > mlim]
-        lr_z = lr_z[lr_m > mlim]
-    
-    boundary = all_refined_region(r_x, r_y, r_z, lr_x, lr_y, lr_z,spacing=spacing)
-    
-    sto.result = {}
-    sto.result[0] = snapshot
-    sto.result[1] = boundary
+        output_name = 'refined_boundary_1st.npy'
+    if lim_index == 1:
+        output_name = 'refined_boundary_2nd.npy'
+    if lim_index == 2:
+        output_name = 'refined_boundary_3rd.npy'
+    if lim_index > 2:
+        output_name = 'refined_boundary_'+str(lim_index+1)+'th.npy'
 
-output = {}
-if yt.is_root():
-    for c, vals in sorted(my_storage.items()):
-        output[vals[0]] = vals[1]
-    np.save('refined_boundary.npy',output)
+    if yt.is_root():
+        for c, vals in sorted(my_storage.items()):
+            output[vals[0]] = vals[1]
+        np.save(output_name,output)
         
     
-    
+#------------------------Main code------------------------#
+code_name = sys.argv[1]
+lim_index = int(sys.argv[2])
+directory = sys.argv[3]
+boundary_search_all_snapshots(code_name, lim_index, directory)
