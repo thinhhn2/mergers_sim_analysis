@@ -190,22 +190,43 @@ def boundary_search_all_snapshots(code_name, lim_index, directory):
             lr_z = reg[('PartType2','particle_position_z')].to('code_length').v
             lr_m = reg[('PartType2','Masses')].to('Msun').v
         
-        if lim_index == 0:
-            if code_name == 'GADGET3' or code_name == 'AREPO' or code_name == 'GIZMO':
-                #Obtain the most refined particles' coordinate
-                r_x = reg[('PartType1','particle_position_x')].to('code_length').v
-                r_y = reg[('PartType1','particle_position_y')].to('code_length').v
-                r_z = reg[('PartType1','particle_position_z')].to('code_length').v
-            if code_name == 'GEAR':
-                #Obtain the most refined particles' coordinate
-                r_x = reg[('PartType2','particle_position_x')].to('code_length').v
-                r_y = reg[('PartType2','particle_position_y')].to('code_length').v
-                r_z = reg[('PartType2','particle_position_z')].to('code_length').v
+        if code_name == 'RAMSES':
+            #Obtain the dark matter particles' coordinates
+            lr_x = reg[('DM','particle_position_x')].to('code_length').v
+            lr_y = reg[('DM','particle_position_y')].to('code_length').v
+            lr_z = reg[('DM','particle_position_z')].to('code_length').v
+            lr_m = reg[('DM','particle_mass')].to('Msun').v
 
+        #CHOOSING THE LAYER OF REFINEMENT FOR SPH CODES (most refined and other dark matter particles are put in different arrays)
+        if code_name == 'GADGET3' or code_name == 'AREPO' or code_name == 'GIZMO' or code_name == 'GEAR':
+            if lim_index == 0:
+                if code_name == 'GADGET3' or code_name == 'AREPO' or code_name == 'GIZMO':
+                    #Obtain the most refined particles' coordinate
+                    r_x = reg[('PartType1','particle_position_x')].to('code_length').v
+                    r_y = reg[('PartType1','particle_position_y')].to('code_length').v
+                    r_z = reg[('PartType1','particle_position_z')].to('code_length').v
+                if code_name == 'GEAR':
+                    #Obtain the most refined particles' coordinate
+                    r_x = reg[('PartType2','particle_position_x')].to('code_length').v
+                    r_y = reg[('PartType2','particle_position_y')].to('code_length').v
+                    r_z = reg[('PartType2','particle_position_z')].to('code_length').v
+
+            
+            if lim_index > 0:
+                #The other nth-most refined particles are taken in the less-refined arrays
+                mlim = np.sort(np.array(list(set(lr_m))))[lim_index-1]
+                r_x = lr_x[lr_m <= mlim]
+                r_y = lr_y[lr_m <= mlim]
+                r_z = lr_z[lr_m <= mlim]
+                #after obtaining the nth-most refined particles, the rest are less-refined
+                lr_x = lr_x[lr_m > mlim]
+                lr_y = lr_y[lr_m > mlim]
+                lr_z = lr_z[lr_m > mlim]
         
-        if lim_index > 0:
-            #The other nth-most refined particles are taken in the less-refined arrays
-            mlim = np.sort(np.array(list(set(lr_m))))[lim_index-1]
+        #CHOOSING THE LAYER OF REFINEMENT FOR AMR CODES (all dark matter particles are put in one array)
+        if code_name == 'RAMSES':
+            #Selecting the layer of refined particles
+            mlim = np.sort(np.array(list(set(lr_m))))[lim_index]
             r_x = lr_x[lr_m <= mlim]
             r_y = lr_y[lr_m <= mlim]
             r_z = lr_z[lr_m <= mlim]
@@ -213,6 +234,7 @@ def boundary_search_all_snapshots(code_name, lim_index, directory):
             lr_x = lr_x[lr_m > mlim]
             lr_y = lr_y[lr_m > mlim]
             lr_z = lr_z[lr_m > mlim]
+
         
         boundary = all_refined_region(r_x, r_y, r_z, lr_x, lr_y, lr_z,spacing=spacing)
         
