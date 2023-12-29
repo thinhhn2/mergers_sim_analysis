@@ -172,7 +172,7 @@ def boundary_search_all_snapshots(code_name, lim_index, directory):
     for sto, snapshot in yt.parallel_objects(gs, nprocs-1, storage = my_storage):
         ds = yt.load(snapshot)
         #Set the spacing to be 1/100000 of the box size
-        spacing = ds.domain_right_edge.to('code_length').v[0]/100000
+        spacing = (ds.domain_right_edge.to('code_length').v[0] - ds.domain_left_edge.to('code_length').v[0])/100000
 
         reg = ds.all_data()
         
