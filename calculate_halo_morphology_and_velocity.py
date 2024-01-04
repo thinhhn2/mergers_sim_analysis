@@ -108,7 +108,7 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
         add_particle_filter("stars", function=stars, filtered_type="all", requires=["particle_type","particle_mass"])
         ds.add_particle_filter("stars")
     
-    if code_name == 'GADGET3':
+    if code_name == 'GADGET3' or code_name == 'AREPO':
         ds = yt.load(pfs[int(idx)],unit_base = {"length": (1.0, "Mpccm/h")})
 
     star_data = np.load('metadata/stars_%s.npy' % idx,allow_pickle=True).tolist()
