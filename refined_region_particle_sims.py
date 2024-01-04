@@ -23,7 +23,7 @@ def all_refined_region(r_x,r_y,r_z,lr_x,lr_y,lr_z,spacing):
         The x,y,z coordinates of all less-refined dark matter particles.
 
     spacing : TYPE, optional
-        The spacing when we build another layer to the refined region. The default is 0.001.
+        The spacing when we build another layer to the refined region. 
 
     Returns
     -------
