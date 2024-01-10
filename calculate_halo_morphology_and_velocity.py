@@ -2,6 +2,7 @@ import yt
 from yt.data_objects.particle_filters import add_particle_filter
 import numpy as np
 import matplotlib.pyplot as plt
+import sys, os
 
 yt.enable_parallelism()
 from mpi4py import MPI
@@ -9,6 +10,19 @@ comm = MPI.COMM_WORLD
 rank = comm.rank
 nprocs = comm.size
 
+#-------------------------------------------------------------------------------------------
+#LOAD DATA
+
+tree_name = sys.argv[1] #for example 'halotree_Thinh_structure_with_com.npy'
+code_name = sys.argv[2] #Select among ENZO, GADGET3, AREPO, GIZMO etc.
+start_idx = int(sys.argv[3]) #if we want to start from a specific snapshot (when restarting, for example)
+
+tree = np.load(tree_name,allow_pickle=True).tolist()
+pfs = np.loadtxt('pfs_manual.dat',dtype='str')
+snapshot_idx = list(tree['0'].keys())[start_idx:]
+if yt.is_root():
+    os.mkdir('./morphology_data')
+    os.mkdir('./morphology_plots')
 #-------------------------------------------------------------------------------------------
 #DEFINE FUNCTIONS
 
@@ -93,12 +107,7 @@ def find_average_and_error_of_bins(values, masses, s_galaxy_distance_to_angmomen
     return bins_average, bins_error
 
 #-------------------------------------------------------------------------------------------
-#LOAD DATA
-tree = np.load('halotree_Thinh_structure_with_com.npy',allow_pickle=True).tolist()
-pfs = np.loadtxt('pfs_manual.dat',dtype='str')
-snapshot_idx = list(tree['0'].keys())
-code_name = 'GADGET3' #choose from ENZO, GADGET3, etc
-#-------------------------------------------------------------------------------------------
+#RUNNING MAIN CODE
 
 my_storage = {}
 for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage):
@@ -110,9 +119,12 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     
     if code_name == 'GADGET3' or code_name == 'AREPO':
         ds = yt.load(pfs[int(idx)],unit_base = {"length": (1.0, "Mpccm/h")})
+    
+    if code_name == 'GIZMO':
+        ds = yt.load(pfs[int(idx)]) #GIZMO automatically includes the correct conversion factor    
 
     star_data = np.load('metadata/stars_%s.npy' % idx,allow_pickle=True).tolist()
-    gas_data = np.load('metadata/gas_%s.npy' % idx,allow_pickle=True).tolist()
+    #gas_data = np.load('metadata/gas_%s.npy' % idx,allow_pickle=True).tolist()
     bary_data = np.load('metadata/bary_%s.npy' % idx,allow_pickle=True).tolist()
 
     com_coor_bary = star_data['com_coor_bary']
@@ -125,9 +137,9 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     s_rel_coor_each = s_coor_each - com_coor_bary
     s_rel_vel_each = s_vel_each - com_vel_bary
 
-    g_mass_each = gas_data['mass']
-    g_coor_each = gas_data['coor']
-    g_vel_each = gas_data['vel']
+    #g_mass_each = gas_data['mass']
+    #g_coor_each = gas_data['coor']
+    #g_vel_each = gas_data['vel']
 
     bary_rel_coor_each = bary_data['rel_coor']
     bary_rel_vel_each = bary_data['rel_vel']
