@@ -2,7 +2,7 @@ import yt
 import numpy as np
 from yt.data_objects.particle_filters import add_particle_filter
 import matplotlib.pyplot as plt
-import sys
+import sys, os
 
 yt.enable_parallelism()
 from mpi4py import MPI
@@ -23,7 +23,7 @@ start_idx = int(sys.argv[3]) #if we want to start from a specific snapshot (when
 tree = np.load(tree_name,allow_pickle=True).tolist()
 pfs = np.loadtxt('pfs_manual.dat',dtype='str')
 snapshot_idx = list(tree['0'].keys())[start_idx:]
-
+os.mkdir('./metadata')
 #-------------------------------------------------------------------------------------------
 #MAIN CODE
 
