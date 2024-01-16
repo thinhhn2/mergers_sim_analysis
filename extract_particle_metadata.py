@@ -17,7 +17,7 @@ def stars(pfilter, data):
     return filter_stars
 
 tree_name = sys.argv[1] #for example 'halotree_Thinh_structure_with_com.npy'
-code_name = sys.argv[2] #Select among ENZO, GADGET3, AREPO, GIZMO etc.
+code_name = sys.argv[2] #Select among ENZO, GADGET3, AREPO, GIZMO, GEAR, RAMSES, and ART
 start_idx = int(sys.argv[3]) #if we want to start from a specific snapshot (when restarting, for example)
 
 tree = np.load(tree_name,allow_pickle=True).tolist()
@@ -139,6 +139,77 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
         g_mass_each = reg[("PartType0", "particle_mass")].in_units("Msun").v.tolist()
         g_coor_each = reg[("PartType0", "particle_position")].in_units("kpc").v.tolist()
         g_vel_each = reg[("PartType0", "particle_velocity")].in_units("km/s").v.tolist()
+    
+
+    if code_name == 'ART':
+        ds = yt.load(pfs[int(idx)]) #ART automatically includes the correct conversion factor
+
+        coor = tree['0'][idx]['coor']
+        rvir = tree['0'][idx]['Rvir']
+
+        reg = ds.sphere(coor,(rvir,'code_length'))
+
+        com_coor_star = reg.quantities.center_of_mass(use_gas = False, use_particles = True, particle_type='PartType1').to('kpc').v
+        com_vel_star = reg.quantities.bulk_velocity(use_gas = False, use_particles = True, particle_type='PartType1').to('km/s').v
+
+        com_coor_bary = reg.quantities.center_of_mass(use_gas = True, use_particles = True, particle_type='PartType1').to('kpc').v
+        com_vel_bary = reg.quantities.bulk_velocity(use_gas = True, use_particles = True, particle_type='PartType1').to('km/s').v
+
+        #Calculating stars' metadata
+        s_mass_each = reg[("stars", "particle_mass")].in_units("Msun").v.tolist()
+        s_coor_each = reg[("stars", "particle_position")].in_units("kpc").v.tolist()
+        s_vel_each = reg[("stars", "particle_velocity")].in_units("km/s").v.tolist()
+
+        #Calculating gas' metadata
+        g_mass_each = reg[("gas", "cell_mass")].in_units("Msun").v.tolist()
+        g_x_each = reg[("gas","x")].in_units("kpc").v.tolist()
+        g_y_each = reg[("gas","y")].in_units("kpc").v.tolist()
+        g_z_each = reg[("gas","z")].in_units("kpc").v.tolist()
+        g_velx_each = reg[("gas","velocity_x")].in_units("km/s").v.tolist()
+        g_vely_each = reg[("gas","velocity_y")].in_units("km/s").v.tolist()
+        g_velz_each = reg[("gas","velocity_z")].in_units("km/s").v.tolist()
+        g_coor_each = []
+        g_vel_each = []
+        for i in range(len(g_x_each)):
+            g_coor_each.append([g_x_each[i],g_y_each[i],g_z_each[i]])
+            g_vel_each.append([g_velx_each[i],g_vely_each[i],g_velz_each[i]])
+        g_coor_each = np.array(g_coor_each)
+        g_vel_each = np.array(g_vel_each)
+
+    if code_name == 'RAMSES':
+        ds = yt.load(pfs[int(idx)]) #RAMSES automatically includes the correct conversion factor
+
+        coor = tree['0'][idx]['coor']
+        rvir = tree['0'][idx]['Rvir']
+
+        reg = ds.sphere(coor,(rvir,'code_length'))
+
+        com_coor_star = reg.quantities.center_of_mass(use_gas = False, use_particles = True, particle_type='star').to('kpc').v
+        com_vel_star = reg.quantities.bulk_velocity(use_gas = False, use_particles = True, particle_type='star').to('km/s').v
+
+        com_coor_bary = reg.quantities.center_of_mass(use_gas = True, use_particles = True, particle_type='star').to('kpc').v
+        com_vel_bary = reg.quantities.bulk_velocity(use_gas = True, use_particles = True, particle_type='star').to('km/s').v
+
+        #Calculating stars' metadata
+        s_mass_each = reg[("star", "particle_mass")].in_units("Msun").v.tolist()
+        s_coor_each = reg[("star", "particle_position")].in_units("kpc").v.tolist()
+        s_vel_each = reg[("star", "particle_velocity")].in_units("km/s").v.tolist()
+
+        #Calculating gas' metadata
+        g_mass_each = reg[("gas", "cell_mass")].in_units("Msun").v.tolist()
+        g_x_each = reg[("gas","x")].in_units("kpc").v.tolist()
+        g_y_each = reg[("gas","y")].in_units("kpc").v.tolist()
+        g_z_each = reg[("gas","z")].in_units("kpc").v.tolist()
+        g_velx_each = reg[("gas","velocity_x")].in_units("km/s").v.tolist()
+        g_vely_each = reg[("gas","velocity_y")].in_units("km/s").v.tolist()
+        g_velz_each = reg[("gas","velocity_z")].in_units("km/s").v.tolist()
+        g_coor_each = []
+        g_vel_each = []
+        for i in range(len(g_x_each)):
+            g_coor_each.append([g_x_each[i],g_y_each[i],g_z_each[i]])
+            g_vel_each.append([g_velx_each[i],g_vely_each[i],g_velz_each[i]])
+        g_coor_each = np.array(g_coor_each)
+        g_vel_each = np.array(g_vel_each)
 
 
     #Calculate the angular momentum of only baryonic matters
