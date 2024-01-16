@@ -23,7 +23,8 @@ start_idx = int(sys.argv[3]) #if we want to start from a specific snapshot (when
 tree = np.load(tree_name,allow_pickle=True).tolist()
 pfs = np.loadtxt('pfs_manual.dat',dtype='str')
 snapshot_idx = list(tree['0'].keys())[start_idx:]
-os.mkdir('./metadata')
+if yt.is_root():
+    os.mkdir('./metadata')
 #-------------------------------------------------------------------------------------------
 #MAIN CODE
 
@@ -115,11 +116,41 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
         g_coor_each = reg[("PartType0", "particle_position")].in_units("kpc").v.tolist()
         g_vel_each = reg[("PartType0", "particle_velocity")].in_units("km/s").v.tolist()
 
+    if code_name == 'GEAR':
+        ds = yt.load(pfs[int(idx)]) #GIZMO automatically includes the correct conversion factor
+
+        coor = tree['0'][idx]['coor']
+        rvir = tree['0'][idx]['Rvir']
+
+        reg = ds.sphere(coor,(rvir,'code_length'))
+
+        com_coor_star = reg.quantities.center_of_mass(use_gas = False, use_particles = True, particle_type='PartType1').to('kpc').v
+        com_vel_star = reg.quantities.bulk_velocity(use_gas = False, use_particles = True, particle_type='PartType1').to('km/s').v
+
+        com_coor_bary = reg.quantities.center_of_mass(use_gas = True, use_particles = True, particle_type='PartType1').to('kpc').v
+        com_vel_bary = reg.quantities.bulk_velocity(use_gas = True, use_particles = True, particle_type='PartType1').to('km/s').v
+
+        #Calculating stars' metadata
+        s_mass_each = reg[("PartType1", "particle_mass")].in_units("Msun").v.tolist()
+        s_coor_each = reg[("PartType1", "particle_position")].in_units("kpc").v.tolist()
+        s_vel_each = reg[("PartType1", "particle_velocity")].in_units("km/s").v.tolist()
+
+        #Calculating gas' metadata
+        g_mass_each = reg[("PartType0", "particle_mass")].in_units("Msun").v.tolist()
+        g_coor_each = reg[("PartType0", "particle_position")].in_units("kpc").v.tolist()
+        g_vel_each = reg[("PartType0", "particle_velocity")].in_units("km/s").v.tolist()
+
 
     #Calculate the angular momentum of only baryonic matters
-    bary_coor_each = np.concatenate((s_coor_each,g_coor_each),axis=0)
-    bary_vel_each = np.concatenate((s_vel_each,g_vel_each),axis=0)
-    bary_mass_each = np.concatenate((s_mass_each,g_mass_each),axis=0)
+    if s_mass_each == []: #if there is no star particles
+        bary_coor_each = g_coor_each    
+        bary_vel_each = g_vel_each
+        bary_mass_each = g_mass_each
+    else:
+        bary_coor_each = np.concatenate((s_coor_each,g_coor_each),axis=0)
+        bary_vel_each = np.concatenate((s_vel_each,g_vel_each),axis=0)
+        bary_mass_each = np.concatenate((s_mass_each,g_mass_each),axis=0)
+    
     bary_relative_coor_each = bary_coor_each - com_coor_bary
     bary_relative_vel_each = bary_vel_each - com_vel_bary
     bary_relative_momentum_each = []
