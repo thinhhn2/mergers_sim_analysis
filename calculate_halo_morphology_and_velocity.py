@@ -37,7 +37,7 @@ def find_scale_distace(s_distance_to_angmoment,rvir, s_mass_each, percent_lim = 
 
     Note that this is the distance from the rotational axis, not the distance from the center of mass
     """
-    bin_dist = np.linspace(0,rvir,500)
+    bin_dist = np.linspace(0,1.5*rvir,500) #the 1.5 coefficient is to account when the reg.sphere does not load a perfect sphere
     n_star_distance = []
     for i in range(1,len(bin_dist)):
         n_star_bin_distance = np.sum(np.array(s_mass_each)[(s_distance_to_angmoment>bin_dist[i-1]) & (s_distance_to_angmoment<=bin_dist[i])])
@@ -63,7 +63,7 @@ def find_scale_height(s_height,s_distance_to_angmoment,distance_start, distance_
     """
     s_height_distance = s_height[(s_distance_to_angmoment>distance_start) & (s_distance_to_angmoment<=distance_end)]
     s_mass_each_distance = np.array(s_mass_each)[(s_distance_to_angmoment>distance_start) & (s_distance_to_angmoment<=distance_end)]
-    bin_height = np.linspace(0,rvir,500)
+    bin_height = np.linspace(0,1.5*rvir,500) #the 1.5 coefficient is to account when the reg.sphere does not load a perfect sphere
     
     n_star_height = []
     for i in range(1,len(bin_height)):
@@ -120,8 +120,8 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     if code_name == 'GADGET3' or code_name == 'AREPO':
         ds = yt.load(pfs[int(idx)],unit_base = {"length": (1.0, "Mpccm/h")})
     
-    if code_name == 'GIZMO':
-        ds = yt.load(pfs[int(idx)]) #GIZMO automatically includes the correct conversion factor    
+    if code_name == 'GIZMO' or code_name == 'GEAR':
+        ds = yt.load(pfs[int(idx)]) #GIZMO and GEAR automatically includes the correct conversion factor    
 
     star_data = np.load('metadata/stars_%s.npy' % idx,allow_pickle=True).tolist()
     #gas_data = np.load('metadata/gas_%s.npy' % idx,allow_pickle=True).tolist()
@@ -343,9 +343,16 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     spin_param = bary_spin_angmoment_magnitude/np.sqrt(2*spin_dist*bary_spin_mass**3)
 
     #Built-in function to calculate the regular spin parameter (from Peebles 1971, not from Bullock 2001)
+    #CURRENTLY IT HAS AN ERROR
     reg_spin = ds.sphere(com_coor_bary,(scale_distance,'kpc'))
-    spin_param_yt = reg_spin.quantities.spin_parameter(use_gas = True, use_particles = True, particle_type='stars')
-    spin_param_yt = spin_param_yt.v.tolist()
+    if code_name == 'ENZO' or code_name == 'GADGET3' or code_name == 'AREPO':
+        spin_param_yt = reg_spin.quantities.spin_parameter(use_gas = True, use_particles = True, particle_type='stars')
+        spin_param_yt = spin_param_yt.v.tolist()
+
+    if code_name == 'GIZMO' or code_name == 'GEAR': #error when using the built-in function for GIZMO (missing 'gas','volume' field)
+        #spin_param_yt = reg_spin.quantities.spin_parameter(use_gas = True, use_particles = True, particle_type='PartType4')
+        #spin_param_yt = spin_param_yt.v.tolist()
+        spin_param_yt = 0
 
     output = {}
     output['scale_distance'] = scale_distance
