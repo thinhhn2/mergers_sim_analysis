@@ -149,11 +149,11 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
 
         reg = ds.sphere(coor,(rvir,'code_length'))
 
-        com_coor_star = reg.quantities.center_of_mass(use_gas = False, use_particles = True, particle_type='PartType1').to('kpc').v
-        com_vel_star = reg.quantities.bulk_velocity(use_gas = False, use_particles = True, particle_type='PartType1').to('km/s').v
+        com_coor_star = reg.quantities.center_of_mass(use_gas = False, use_particles = True, particle_type='stars').to('kpc').v
+        com_vel_star = reg.quantities.bulk_velocity(use_gas = False, use_particles = True, particle_type='stars').to('km/s').v
 
-        com_coor_bary = reg.quantities.center_of_mass(use_gas = True, use_particles = True, particle_type='PartType1').to('kpc').v
-        com_vel_bary = reg.quantities.bulk_velocity(use_gas = True, use_particles = True, particle_type='PartType1').to('km/s').v
+        com_coor_bary = reg.quantities.center_of_mass(use_gas = True, use_particles = True, particle_type='stars').to('kpc').v
+        com_vel_bary = reg.quantities.bulk_velocity(use_gas = True, use_particles = True, particle_type='stars').to('km/s').v
 
         #Calculating stars' metadata
         s_mass_each = reg[("stars", "particle_mass")].in_units("Msun").v.tolist()
