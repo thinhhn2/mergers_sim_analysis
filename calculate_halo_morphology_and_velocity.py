@@ -134,6 +134,10 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     s_mass_each = star_data['mass']
     s_coor_each = star_data['coor']
     s_vel_each = star_data['vel']
+
+    if s_mass_each == []: #if there is no star particle in the halo, then skip this snapshot
+        continue
+    
     s_rel_coor_each = s_coor_each - com_coor_bary
     s_rel_vel_each = s_vel_each - com_vel_bary
 
