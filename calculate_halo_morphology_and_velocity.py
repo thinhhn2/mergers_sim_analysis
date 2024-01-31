@@ -20,7 +20,7 @@ start_idx = int(sys.argv[3]) #if we want to start from a specific snapshot (when
 tree = np.load(tree_name,allow_pickle=True).tolist()
 pfs = np.loadtxt('pfs_manual.dat',dtype='str')
 snapshot_idx = list(tree['0'].keys())[start_idx:]
-if yt.is_root():
+if yt.is_root() and os.path.isdir('morphology_data') == False and os.path.isdir('morphology_plots') == False:
     os.mkdir('./morphology_data')
     os.mkdir('./morphology_plots')
 #-------------------------------------------------------------------------------------------
