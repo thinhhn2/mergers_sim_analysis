@@ -120,7 +120,7 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     if code_name == 'GADGET3' or code_name == 'AREPO':
         ds = yt.load(pfs[int(idx)],unit_base = {"length": (1.0, "Mpccm/h")})
     
-    if code_name == 'GIZMO' or code_name == 'GEAR' or code_name == 'ART' or code_name == 'RAMSES':
+    if code_name == 'GIZMO' or code_name == 'GEAR' or code_name == 'ART' or code_name == 'RAMSES' or code_name == 'CHANGA':
         ds = yt.load(pfs[int(idx)]) #GIZMO, GEAR, ART, and RAMSES automatically includes the correct conversion factor    
 
     star_data = np.load('metadata/stars_%s.npy' % idx,allow_pickle=True).tolist()
@@ -353,7 +353,7 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
         spin_param_yt = reg_spin.quantities.spin_parameter(use_gas = True, use_particles = True, particle_type='stars')
         spin_param_yt = spin_param_yt.v.tolist()
 
-    if code_name == 'GIZMO' or code_name == 'GEAR' or code_name == 'ART' or code_name == 'RAMSES': #error when using the built-in function for GIZMO (missing 'gas','volume' field)
+    if code_name == 'GIZMO' or code_name == 'GEAR' or code_name == 'ART' or code_name == 'RAMSES' or code_name == 'CHANGA': #error when using the built-in function for GIZMO (missing 'gas','volume' field)
         #spin_param_yt = reg_spin.quantities.spin_parameter(use_gas = True, use_particles = True, particle_type='PartType4')
         #spin_param_yt = spin_param_yt.v.tolist()
         spin_param_yt = 0
