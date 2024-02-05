@@ -1,6 +1,7 @@
 import yt
 import numpy as np
 import sys,os
+import glob as glob
 
 yt.enable_parallelism()
 from mpi4py import MPI
@@ -150,7 +151,7 @@ def all_refined_region(r_x,r_y,r_z,lr_x,lr_y,lr_z,spacing):
     return [np.array([min_x,min_y,min_z]),np.array([max_x,max_y,max_z])]
 
 
-def boundary_search_all_snapshots(code_name, lim_index, directory):
+def boundary_search_all_snapshots(code_name, lim_index, directory, start_idx):
     """
     This function runs the all_refined_region function for all snapshots in the simulation.
 
@@ -164,7 +165,8 @@ def boundary_search_all_snapshots(code_name, lim_index, directory):
     """
     os.chdir(directory)
 
-    gs = np.loadtxt('pfs_manual.dat',dtype=str)
+    gs_full = np.loadtxt('pfs_manual.dat',dtype=str)
+    gs = gs_full[start_idx:]
 
     #Runnning parallel to obtain the refined region for each snapshot
     my_storage = {}
@@ -251,24 +253,22 @@ def boundary_search_all_snapshots(code_name, lim_index, directory):
 
         
         boundary = all_refined_region(r_x, r_y, r_z, lr_x, lr_y, lr_z,spacing=spacing)
-        
-        sto.result = {}
-        sto.result[0] = snapshot
-        sto.result[1] = boundary
 
-    output = {}
-    if lim_index == 0:
-        output_name = 'refined_boundary_1st.npy'
-    if lim_index == 1:
-        output_name = 'refined_boundary_2nd.npy'
-    if lim_index == 2:
-        output_name = 'refined_boundary_3rd.npy'
-    if lim_index > 2:
-        output_name = 'refined_boundary_'+str(lim_index+1)+'th.npy'
+        idx = list(gs_full).index(snapshot)
 
-    if yt.is_root():
-        for c, vals in sorted(my_storage.items()):
-            output[vals[0]] = vals[1]
+        output = {}
+        if lim_index == 0:
+            output_name = 'refined_region_results/refined_boundary_1st_'+str(idx)+'.npy'
+        if lim_index == 1:
+            output_name = 'refined_region_results/refined_boundary_2nd_'+str(idx)+'.npy'
+        if lim_index == 2:
+            output_name = 'refined_region_results/refined_boundary_3rd_'+str(idx)+'.npy'
+        if lim_index > 2:
+            output_name = 'refined_region_results/refined_boundary_'+str(lim_index+1)+'th_'+str(idx)+'.npy'
+
+        output['snapshot'] = snapshot
+        output['boundary'] = boundary
+
         np.save(output_name,output)
         
     
@@ -276,4 +276,30 @@ def boundary_search_all_snapshots(code_name, lim_index, directory):
 code_name = sys.argv[1]
 lim_index = int(sys.argv[2])
 directory = sys.argv[3]
-boundary_search_all_snapshots(code_name, lim_index, directory)
+start_idx = int(sys.argv[4])
+
+if yt.is_root() and os.path.isdir('./refined_region_results') == False:
+    os.mkdir('./refined_region_results')
+
+boundary_search_all_snapshots(code_name, lim_index, directory, start_idx)
+
+if yt.is_root():
+    refined_files = glob.glob('refined_region_results/*.npy')
+    pfs = np.genfromtxt('pfs_manual.dat',dtype=str)
+    output_combined = {}
+
+    if len(refined_files) == len(pfs):
+        for file in refined_files:
+            file_data = np.load(file,allow_pickle=True).tolist()
+            output_combined[file_data['snapshot']] = file_data['boundary']  
+
+        if lim_index == 0:
+            output_combined_name = 'refined_boundary_1st.npy'
+        if lim_index == 1:
+            output_combined_name = 'refined_boundary_2nd.npy'
+        if lim_index == 2:
+            output_combined_name = 'refined_boundary_3rd.npy'
+        if lim_index > 2:
+            output_combined_name = 'refined_boundary_'+str(lim_index+1)+'th.npy'
+        
+        np.save(output_combined_name,output_combined)
