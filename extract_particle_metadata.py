@@ -365,6 +365,32 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
             g_vel_each.append([g_velx_each[i],g_vely_each[i],g_velz_each[i]])
         g_coor_each = np.array(g_coor_each)
         g_vel_each = np.array(g_vel_each)
+    
+
+    if code_name == 'CHANGA':
+        ds = yt.load(pfs[int(idx)])
+
+        coor = tree['0'][idx]['coor']
+        rvir = tree['0'][idx]['Rvir']
+
+        reg = ds.sphere(coor,(rvir,'code_length'))
+
+        com_coor_star = reg.quantities.center_of_mass(use_gas = False, use_particles = True, particle_type='Stars').to('kpc').v
+        com_vel_star = reg.quantities.bulk_velocity(use_gas = False, use_particles = True, particle_type='Stars').to('km/s').v
+
+        com_coor_bary = reg.quantities.center_of_mass(use_gas = True, use_particles = True, particle_type='Stars').to('kpc').v
+        com_vel_bary = reg.quantities.bulk_velocity(use_gas = True, use_particles = True, particle_type='Stars').to('km/s').v
+
+        #Calculating stars' metadata
+        s_mass_each = reg[("Stars", "Mass")].in_units("Msun").v.tolist()
+        s_coor_each = reg[("Stars", "particle_position")].in_units("kpc").v.tolist()
+        s_vel_each = reg[("Stars", "particle_velocity")].in_units("km/s").v.tolist()
+
+        #Calculating gas' metadata
+        #Calculating gas' metadata
+        g_mass_each = reg[("Gas", "Mass")].in_units("Msun").v.tolist()
+        g_coor_each = reg[("Gas", "particle_position")].in_units("kpc").v.tolist()
+        g_vel_each = reg[("Gas", "particle_velocity")].in_units("km/s").v.tolist()
 
 
     #Calculate the angular momentum of only baryonic matters
