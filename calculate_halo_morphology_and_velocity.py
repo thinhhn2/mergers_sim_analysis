@@ -123,9 +123,9 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     if code_name == 'GIZMO' or code_name == 'GEAR' or code_name == 'ART' or code_name == 'RAMSES' or code_name == 'CHANGA':
         ds = yt.load(pfs[int(idx)]) #GIZMO, GEAR, ART, and RAMSES automatically includes the correct conversion factor    
 
-    star_data = np.load('metadata/stars_%s.npy' % idx,allow_pickle=True).tolist()
+    star_data = np.load('metadata/branch-0/stars_%s.npy' % idx,allow_pickle=True).tolist()
     #gas_data = np.load('metadata/gas_%s.npy' % idx,allow_pickle=True).tolist()
-    bary_data = np.load('metadata/bary_%s.npy' % idx,allow_pickle=True).tolist()
+    bary_data = np.load('metadata/branch-0/bary_%s.npy' % idx,allow_pickle=True).tolist()
 
     com_coor_bary = star_data['com_coor_bary']
     com_vel_bary = star_data['com_vel_bary']
