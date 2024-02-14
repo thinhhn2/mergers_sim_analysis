@@ -226,8 +226,8 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     if code_name == 'GADGET3' or code_name == 'AREPO':
         ds = yt.load(pfs[int(idx)],unit_base = {"length": (1.0, "Mpccm/h")})
 
-        coor = tree['0'][idx]['coor']
-        rvir = tree['0'][idx]['Rvir']
+        coor = tree[branch_key][idx]['coor']
+        rvir = tree[branch_key][idx]['Rvir']
 
         reg = ds.sphere(coor,(rvir,'code_length'))
 
@@ -250,8 +250,8 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     if code_name == 'GIZMO':
         ds = yt.load(pfs[int(idx)]) #GIZMO automatically includes the correct conversion factor
 
-        coor = tree['0'][idx]['coor']
-        rvir = tree['0'][idx]['Rvir']
+        coor = tree[branch_key][idx]['coor']
+        rvir = tree[branch_key][idx]['Rvir']
 
         reg = ds.sphere(coor,(rvir,'code_length'))
 
@@ -274,8 +274,8 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     if code_name == 'GEAR':
         ds = yt.load(pfs[int(idx)]) #GIZMO automatically includes the correct conversion factor
 
-        coor = tree['0'][idx]['coor']
-        rvir = tree['0'][idx]['Rvir']
+        coor = tree[branch_key][idx]['coor']
+        rvir = tree[branch_key][idx]['Rvir']
 
         reg = ds.sphere(coor,(rvir,'code_length'))
 
@@ -299,8 +299,8 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     if code_name == 'ART':
         ds = yt.load(pfs[int(idx)]) #ART automatically includes the correct conversion factor
 
-        coor = tree['0'][idx]['coor']
-        rvir = tree['0'][idx]['Rvir']
+        coor = tree[branch_key][idx]['coor']
+        rvir = tree[branch_key][idx]['Rvir']
 
         reg = ds.sphere(coor,(rvir,'code_length'))
 
@@ -334,8 +334,8 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     if code_name == 'RAMSES':
         ds = yt.load(pfs[int(idx)]) #RAMSES automatically includes the correct conversion factor
 
-        coor = tree['0'][idx]['coor']
-        rvir = tree['0'][idx]['Rvir']
+        coor = tree[branch_key][idx]['coor']
+        rvir = tree[branch_key][idx]['Rvir']
 
         reg = ds.sphere(coor,(rvir,'code_length'))
 
@@ -370,8 +370,8 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     if code_name == 'CHANGA':
         ds = yt.load(pfs[int(idx)])
 
-        coor = tree['0'][idx]['coor']
-        rvir = tree['0'][idx]['Rvir']
+        coor = tree[branch_key][idx]['coor']
+        rvir = tree[branch_key][idx]['Rvir']
 
         reg = ds.sphere(coor,(rvir,'code_length'))
 
