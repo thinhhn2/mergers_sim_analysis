@@ -340,8 +340,9 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     bary_spin_mass = np.sum(bary_spin_mass_each)
 
     bary_spin_angmoment_each = bary_angmoment_each[bary_spin]
+    bary_spin_angmoment = np.sum(bary_spin_angmoment_each,axis=0)
 
-    bary_spin_angmoment_magnitude = np.sum(bary_angmoment**2)**0.5
+    bary_spin_angmoment_magnitude = np.sum(bary_spin_angmoment**2)**0.5
 
     #Calculate the Bullock Spin Parameter. Note that this is spin*sqrt(G)
     spin_param = bary_spin_angmoment_magnitude/np.sqrt(2*spin_dist*bary_spin_mass**3)
