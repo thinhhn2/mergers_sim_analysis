@@ -206,6 +206,8 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
         s_mass_each = reg[("stars", "particle_mass")].in_units("Msun").v.tolist()
         s_coor_each = reg[("stars", "particle_position")].in_units("kpc").v.tolist()
         s_vel_each = reg[("stars", "particle_velocity")].in_units("km/s").v.tolist()
+        s_formation_time_each = reg["stars", "creation_time"].in_units("Gyr").v.tolist()
+        s_ID_each = reg["stars", "particle_index"].v.tolist()
 
         #Calculating gas' metadata
         g_mass_each = reg[("gas","cell_mass")].in_units("Msun").v.tolist()
@@ -413,7 +415,7 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     #Calculate the angular momentum
     bary_angmoment_each = np.cross(bary_relative_coor_each,bary_relative_momentum_each)
 
-    output_star = {'com_coor_bary':com_coor_bary,'com_coor_star':com_coor_star,'com_vel_bary':com_vel_bary,'com_vel_star':com_vel_star,'mass':s_mass_each,'coor':s_coor_each,'vel':s_vel_each}
+    output_star = {'com_coor_bary':com_coor_bary,'com_coor_star':com_coor_star,'com_vel_bary':com_vel_bary,'com_vel_star':com_vel_star,'mass':s_mass_each,'coor':s_coor_each,'vel':s_vel_each,'formation_time':s_formation_time_each,'ID':s_ID_each}
     #output_gas = {'com_coor_bary':com_coor_bary,'com_vel_bary':com_vel_bary,'mass':g_mass_each,'coor':g_coor_each,'vel':g_vel_each}
     output_bary = {'com_coor_bary':com_coor_bary,'com_vel_bary':com_vel_bary,'mass':bary_mass_each,'rel_coor':bary_relative_coor_each,'rel_vel':bary_relative_vel_each,'rel_momentum':bary_relative_momentum_each,'angmoment':bary_angmoment_each}
 
