@@ -1,6 +1,7 @@
 import yt
 import numpy as np
 from yt.data_objects.particle_filters import add_particle_filter
+from yt.utilities.cosmology import Cosmology
 import matplotlib.pyplot as plt
 import sys, os
 
@@ -147,7 +148,7 @@ def merger_compute(tree_key, data_original, mass_ratio_limit):
 #-------------------------------------------------------------------------------------------
 #LOAD DATA
 def stars(pfilter, data):
-    filter_stars = np.logical_and(data["all", "particle_type"] == 2, data["all", "particle_mass"].to('Msun') > 1)
+    filter_stars = data["all", "particle_type"] == 2 #there is no mass restriction so we can select deactive particles
     return filter_stars
 
 tree_name = sys.argv[1] #for example 'halotree_Thinh_structure_with_com.npy'
@@ -228,6 +229,9 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     if code_name == 'GADGET3' or code_name == 'AREPO':
         ds = yt.load(pfs[int(idx)],unit_base = {"length": (1.0, "Mpccm/h")})
 
+        co = Cosmology(hubble_constant = ds.hubble_constant, omega_matter = ds.omega_matter, 
+                omega_lambda = ds.omega_lambda, omega_radiation = ds.omega_radiation)
+
         coor = tree[branch_key][idx]['coor']
         rvir = tree[branch_key][idx]['Rvir']
 
@@ -243,6 +247,12 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
         s_mass_each = reg[("PartType4", "particle_mass")].in_units("Msun").v.tolist()
         s_coor_each = reg[("PartType4", "particle_position")].in_units("kpc").v.tolist()
         s_vel_each = reg[("PartType4", "particle_velocity")].in_units("km/s").v.tolist()
+        s_formation_time_each = reg[('PartType4', 'StellarFormationTime')]
+        if len(s_formation_time_each) > 0:  
+            s_formation_time_each = co.t_from_a(s_formation_time_each).in_units('Gyr').v.tolist()
+        else: 
+            s_formation_time_each = np.array([])
+        s_ID_each = reg[("PartType4", "ParticleIDs")].v.tolist()
 
         #Calculating gas' metadata
         g_mass_each = reg[("PartType0", "particle_mass")].in_units("Msun").v.tolist()
@@ -252,6 +262,9 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
     if code_name == 'GIZMO':
         ds = yt.load(pfs[int(idx)]) #GIZMO automatically includes the correct conversion factor
 
+        co = Cosmology(hubble_constant = ds.hubble_constant, omega_matter = ds.omega_matter, 
+                omega_lambda = ds.omega_lambda, omega_radiation = ds.omega_radiation)
+
         coor = tree[branch_key][idx]['coor']
         rvir = tree[branch_key][idx]['Rvir']
 
@@ -267,6 +280,12 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
         s_mass_each = reg[("PartType4", "particle_mass")].in_units("Msun").v.tolist()
         s_coor_each = reg[("PartType4", "particle_position")].in_units("kpc").v.tolist()
         s_vel_each = reg[("PartType4", "particle_velocity")].in_units("km/s").v.tolist()
+        s_formation_time_each = reg[('PartType4', 'StellarFormationTime')]
+        if len(s_formation_time_each) > 0:  
+            s_formation_time_each = co.t_from_a(s_formation_time_each).in_units('Gyr').v.tolist()
+        else: 
+            s_formation_time_each = np.array([])
+        s_ID_each = reg[("PartType4", "ParticleIDs")].v.tolist()
 
         #Calculating gas' metadata
         g_mass_each = reg[("PartType0", "particle_mass")].in_units("Msun").v.tolist()
@@ -275,6 +294,9 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
 
     if code_name == 'GEAR':
         ds = yt.load(pfs[int(idx)]) #GIZMO automatically includes the correct conversion factor
+
+        co = Cosmology(hubble_constant = ds.hubble_constant, omega_matter = ds.omega_matter, 
+                omega_lambda = ds.omega_lambda, omega_radiation = ds.omega_radiation)
 
         coor = tree[branch_key][idx]['coor']
         rvir = tree[branch_key][idx]['Rvir']
@@ -291,6 +313,12 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
         s_mass_each = reg[("PartType1", "particle_mass")].in_units("Msun").v.tolist()
         s_coor_each = reg[("PartType1", "particle_position")].in_units("kpc").v.tolist()
         s_vel_each = reg[("PartType1", "particle_velocity")].in_units("km/s").v.tolist()
+        s_formation_time_each = reg[('PartType1', 'StarFormationTime')]
+        if len(s_formation_time_each) > 0:  
+            s_formation_time_each = co.t_from_a(s_formation_time_each).in_units('Gyr').v.tolist()
+        else: 
+            s_formation_time_each = np.array([])
+        s_ID_each = reg[("PartType1", "ParticleIDs")].v.tolist()
 
         #Calculating gas' metadata
         g_mass_each = reg[("PartType0", "particle_mass")].in_units("Msun").v.tolist()
@@ -316,6 +344,8 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
         s_mass_each = reg[("stars", "particle_mass")].in_units("Msun").v.tolist()
         s_coor_each = reg[("stars", "particle_position")].in_units("kpc").v.tolist()
         s_vel_each = reg[("stars", "particle_velocity")].in_units("km/s").v.tolist()
+        s_formation_time_each = reg[('stars', 'particle_creation_time')].in_units("Gyr").v.tolist()
+        s_ID_each = reg[("stars", "particle_index")].v.tolist()
 
         #Calculating gas' metadata
         g_mass_each = reg[("gas", "cell_mass")].in_units("Msun").v.tolist()
@@ -351,6 +381,8 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
         s_mass_each = reg[("star", "particle_mass")].in_units("Msun").v.tolist()
         s_coor_each = reg[("star", "particle_position")].in_units("kpc").v.tolist()
         s_vel_each = reg[("star", "particle_velocity")].in_units("km/s").v.tolist()
+        s_formation_time_each = reg[('star', 'particle_birth_time')].in_units("Gyr").v.tolist()
+        s_ID_each = reg[("star", "particle_index")].v.tolist()
 
         #Calculating gas' metadata
         g_mass_each = reg[("gas", "cell_mass")].in_units("Msun").v.tolist()
@@ -387,6 +419,7 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
         s_mass_each = reg[("Stars", "Mass")].in_units("Msun").v.tolist()
         s_coor_each = reg[("Stars", "particle_position")].in_units("kpc").v.tolist()
         s_vel_each = reg[("Stars", "particle_velocity")].in_units("km/s").v.tolist()
+        s_formation_time_each = reg[('Stars', 'FormationTime')].in_units("Gyr").v.tolist()
 
         #Calculating gas' metadata
         #Calculating gas' metadata
