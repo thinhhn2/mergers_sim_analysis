@@ -177,41 +177,12 @@ def boundary_search_all_snapshots(code_name, lim_index, directory, start_idx):
         spacing = (ds.domain_right_edge.to('code_length').v[0] - ds.domain_left_edge.to('code_length').v[0])/100000
 
         reg = ds.all_data()
-        
-        if code_name == 'GADGET3' or code_name == 'GEAR':
-            #Obtain the less-refined particles' coordinates
-            lr_x = reg[('PartType5','particle_position_x')].to('code_length').v
-            lr_y = reg[('PartType5','particle_position_y')].to('code_length').v
-            lr_z = reg[('PartType5','particle_position_z')].to('code_length').v
-            lr_m = reg[('PartType5','Masses')].to('Msun').v
-        
-        if code_name == 'AREPO' or code_name == 'GIZMO':
-            #Obtain the less-refined particles' coordinates
-            lr_x = reg[('PartType2','particle_position_x')].to('code_length').v
-            lr_y = reg[('PartType2','particle_position_y')].to('code_length').v
-            lr_z = reg[('PartType2','particle_position_z')].to('code_length').v
-            lr_m = reg[('PartType2','Masses')].to('Msun').v
-        
-        if code_name == 'RAMSES':
-            #Obtain the dark matter particles' coordinates
-            lr_x = reg[('DM','particle_position_x')].to('code_length').v
-            lr_y = reg[('DM','particle_position_y')].to('code_length').v
-            lr_z = reg[('DM','particle_position_z')].to('code_length').v
-            lr_m = reg[('DM','particle_mass')].to('Msun').v
-        
-        if code_name == 'ART':
-            #Obtain the dark matter particles' coordinates
-            lr_x = reg[('darkmatter','particle_position_x')].to('code_length').v
-            lr_y = reg[('darkmatter','particle_position_y')].to('code_length').v
-            lr_z = reg[('darkmatter','particle_position_z')].to('code_length').v
-            lr_m = reg[('darkmatter','particle_mass')].to('Msun').v
-        
-        if code_name == 'CHANGA':
-            #Obtain the dark matter particles' coordinates
-            lr_x = reg[('DarkMatter','particle_position_x')].to('code_length').v
-            lr_y = reg[('DarkMatter','particle_position_y')].to('code_length').v
-            lr_z = reg[('DarkMatter','particle_position_z')].to('code_length').v
-            lr_m = reg[('DarkMatter','particle_mass')].to('Msun').v
+
+        lr_name_dict = {'GEAR': 'PartType5', 'GADGET3': 'PartType5', 'AREPO': 'PartType2', 'GIZMO': 'PartType2', 'RAMSES': 'DM', 'ART': 'darkmatter', 'CHANGA': 'DarkMatter'}
+        lr_x = reg[(lr_name_dict[code_name],'particle_position_x')].to('code_length').v
+        lr_y = reg[(lr_name_dict[code_name],'particle_position_y')].to('code_length').v
+        lr_z = reg[(lr_name_dict[code_name],'particle_position_z')].to('code_length').v
+        lr_m = reg[(lr_name_dict[code_name],'particle_mass')].to('Msun').v
 
         #CHOOSING THE LAYER OF REFINEMENT FOR SPH CODES (most refined and other dark matter particles are put in different arrays)
         if code_name == 'GADGET3' or code_name == 'AREPO' or code_name == 'GIZMO' or code_name == 'GEAR':
