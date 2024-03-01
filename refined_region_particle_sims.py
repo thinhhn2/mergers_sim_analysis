@@ -9,7 +9,7 @@ comm = MPI.COMM_WORLD
 rank = comm.rank
 nprocs = comm.size
 
-def all_refined_region(r_x,r_y,r_z,lr_x,lr_y,lr_z,spacing):
+def all_refined_region(r_pos,lr_pos,spacing):
     """
     This function takes the coordinates of the refined and less-refined dark matter particles
     and returns the boundary of the refined region - the region where there are only refined 
@@ -33,13 +33,10 @@ def all_refined_region(r_x,r_y,r_z,lr_x,lr_y,lr_z,spacing):
 
     """
     #Region where refined particles start to occupy
-    rmin_x, rmin_y, rmin_z, rmax_x, rmax_y, rmax_z = min(r_x), min(r_y), min(r_z), max(r_x), max(r_y), max(r_z)
-    
+    rmin_x, rmin_y, rmin_z, rmax_x, rmax_y, rmax_z = min(r_pos[:,0]), min(r_pos[:,1]), min(r_pos[:,2]), max(r_pos[:,0]), max(r_pos[:,1]), max(r_pos[:,2])
+    rmin, rmax = np.array([rmin_x, rmin_y, rmin_z]), np.array([rmax_x, rmax_y, rmax_z])
     #Restrict the number of less-refined particles to only in the initial refined region to speed up to code
-    in_refined = (lr_x > rmin_x) & (lr_x < rmax_x) & (lr_y > rmin_y) & (lr_y < rmax_y) & (lr_z > rmin_z) & (lr_z < rmax_z)
-    lr_x = lr_x[in_refined]
-    lr_y = lr_y[in_refined]
-    lr_z = lr_z[in_refined]
+    lr_pos = lr_pos[np.all((lr_pos > rmin) & (lr_pos < rmax),axis=1)]
     
     #Building-up method: start from a small region without any less-refined particles, then extend this 
     #region gradually until we hit a less-refined particles
@@ -53,102 +50,47 @@ def all_refined_region(r_x,r_y,r_z,lr_x,lr_y,lr_z,spacing):
     imax_y = box_center[1] + spacing
     imin_z = box_center[2] - spacing
     imax_z = box_center[2] + spacing
-    
-    #min_x, min_y, min_z, max_x, max_y, max_z will be updated in the while loop as new boundary
-    #for the region
-    min_x, min_y, min_z, max_x, max_y, max_z = imin_x, imin_y, imin_z, imax_x, imax_y, imax_z
-    #Flags to stop the building-up process
-    stop_all = 0
-    stop_min_x = 0
-    stop_min_y = 0
-    stop_min_z = 0
-    stop_max_x = 0
-    stop_max_y = 0
-    stop_max_z = 0
-    
-    #Check on the initial region to make sure it doesn't contain any less-refined particles
-    boolean = (lr_x > min_x) & (lr_x < max_x) & (lr_y > min_y) & (lr_y < max_y) & (lr_z > min_z) & (lr_z < max_z)
-    if not any(boolean) == True:
-        
-        #Each stop_all = 6 means that each building-up direction faces a less-refined particle now
-        while stop_all < 6:
-        
-        #This if stop_min_x is to make sure that the code doesn't try building up this way multiple times
-            if stop_min_x < 1:
-                nmin_x = min_x - spacing
-                boolean = (lr_x > nmin_x) & (lr_x < min_x) & (lr_y > min_y) & (lr_y < max_y) & (lr_z > min_z) & (lr_z < max_z)
-                #If there is no less-refined particle(s) in the added region, set the new limit boundary limit
-                #If there are, stop the building-up in this direction
-                if not any(boolean) == True:
-                    min_x = nmin_x
-                    #print('min_x updated')
+
+    # Create the initial box boundaries
+    box = np.array([
+        [imin_x, imin_y, imin_z],
+        [imax_x, imax_y, imax_z]
+    ])
+
+    # Define the six directions as 3D vectors
+    directions = np.array([
+        [[-spacing, 0, 0],[0,0,0]],  # min_x
+        [[0,0,0],[spacing, 0, 0]],   # max_x
+        [[0, -spacing, 0],[0,0,0]],  # min_y
+        [[0,0,0],[0, spacing, 0]],   # max_y
+        [[0, 0, -spacing],[0,0,0]],  # min_z
+        [[0,0,0],[0, 0, spacing]]    # max_z
+    ])
+
+    # Initialize the stop flags
+    stop_flags = np.array([False, False, False, False, False, False])
+
+    # While not all directions are stopped
+    while not np.all(stop_flags):
+        # For each direction
+        for i in range(6):
+            # If this direction is not stopped
+            if stop_flags[i] == False:
+                # Try to expand the box in this direction
+                new_box = box + directions[i]
+                
+                # Check if there are any less-refined particles in the expanded region
+                boolean = np.all((lr_pos > new_box[0]) & (lr_pos < new_box[1]), axis=1)
+                
+                # If there are no less-refined particles, update the box
+                if not np.any(boolean):
+                    box = new_box
+                # Otherwise, stop this direction
                 else:
-                    stop_min_x = 1
-                    stop_all += 1
-                    print('min_x stops being updated')
+                    stop_flags[i] = True
+
                     
-            if stop_min_y < 1:
-                nmin_y = min_y - spacing
-                boolean = (lr_x > min_x) & (lr_x < max_x) & (lr_y > nmin_y) & (lr_y < min_y) & (lr_z > min_z) & (lr_z < max_z)
-                #If the added region has less-refined particle(s), stop the building-up in this direction
-                if not any(boolean) == True:
-                    min_y = nmin_y
-                    #print('min_y updated')
-                else:
-                    stop_min_y = 1
-                    stop_all += 1
-                    print('min_y stops being updated')
-                    
-            if stop_min_z < 1:
-                nmin_z = min_z - spacing
-                boolean = (lr_x > min_x) & (lr_x < max_x) & (lr_y > min_y) & (lr_y < max_y) & (lr_z > nmin_z) & (lr_z < min_z)
-                #If the added region has less-refined particle(s), stop the building-up in this direction
-                if not any(boolean) == True:
-                    min_z = nmin_z
-                    #print('min_z updated')
-                else:
-                    stop_min_z = 1
-                    stop_all += 1
-                    print('min_z stops being updated')
-                    
-            if stop_max_x < 1:
-                nmax_x = max_x + spacing
-                boolean = (lr_x > max_x) & (lr_x < nmax_x) & (lr_y > min_y) & (lr_y < max_y) & (lr_z > min_z) & (lr_z < max_z)
-                #If there is no less-refined particle(s) in the added region, set the new limit boundary limit
-                #If there are, stop the building-up in this direction
-                if not any(boolean) == True:
-                    max_x = nmax_x
-                    #print('max_x updated')
-                else:
-                    stop_max_x = 1
-                    stop_all += 1
-                    print('max_x stops being updated')
-                    
-            if stop_max_y < 1:
-                nmax_y = max_y + spacing
-                boolean = (lr_x > min_x) & (lr_x < max_x) & (lr_y > max_y) & (lr_y < nmax_y) & (lr_z > min_z) & (lr_z < max_z)
-                #If the added region has less-refined particle(s), stop the building-up in this direction
-                if not any(boolean) == True:
-                    max_y = nmax_y
-                    #print('max_y updated')
-                else:
-                    stop_max_y = 1
-                    stop_all += 1
-                    print('max_y stops being updated')
-                    
-            if stop_max_z < 1:
-                nmax_z = max_z + spacing
-                boolean = (lr_x > min_x) & (lr_x < max_x) & (lr_y > min_y) & (lr_y < max_y) & (lr_z > max_z) & (lr_z < nmax_z)
-                #If the added region has less-refined particle(s), stop the building-up in this direction
-                if not any(boolean) == True:
-                    max_z = nmax_z
-                    #print('max_z updated')
-                else:
-                    stop_max_z = 1
-                    stop_all += 1
-                    print('max_z stops being updated')
-                    
-    return [np.array([min_x,min_y,min_z]),np.array([max_x,max_y,max_z])]
+    return [box[0],box[1]]
 
 
 def boundary_search_all_snapshots(code_name, lim_index, directory, start_idx):
@@ -179,9 +121,7 @@ def boundary_search_all_snapshots(code_name, lim_index, directory, start_idx):
         reg = ds.all_data()
 
         lr_name_dict = {'GEAR': 'PartType5', 'GADGET3': 'PartType5', 'AREPO': 'PartType2', 'GIZMO': 'PartType2', 'RAMSES': 'DM', 'ART': 'darkmatter', 'CHANGA': 'DarkMatter'}
-        lr_x = reg[(lr_name_dict[code_name],'particle_position_x')].to('code_length').v
-        lr_y = reg[(lr_name_dict[code_name],'particle_position_y')].to('code_length').v
-        lr_z = reg[(lr_name_dict[code_name],'particle_position_z')].to('code_length').v
+        lr_pos = reg[(lr_name_dict[code_name],'particle_position')].to('code_length').v
         lr_m = reg[(lr_name_dict[code_name],'particle_mass')].to('Msun').v
 
         #CHOOSING THE LAYER OF REFINEMENT FOR SPH CODES (most refined and other dark matter particles are put in different arrays)
@@ -189,41 +129,28 @@ def boundary_search_all_snapshots(code_name, lim_index, directory, start_idx):
             if lim_index == 0:
                 if code_name == 'GADGET3' or code_name == 'AREPO' or code_name == 'GIZMO':
                     #Obtain the most refined particles' coordinate
-                    r_x = reg[('PartType1','particle_position_x')].to('code_length').v
-                    r_y = reg[('PartType1','particle_position_y')].to('code_length').v
-                    r_z = reg[('PartType1','particle_position_z')].to('code_length').v
+                    r_pos = reg[('PartType1','particle_position')].to('code_length').v
                 if code_name == 'GEAR':
                     #Obtain the most refined particles' coordinate
-                    r_x = reg[('PartType2','particle_position_x')].to('code_length').v
-                    r_y = reg[('PartType2','particle_position_y')].to('code_length').v
-                    r_z = reg[('PartType2','particle_position_z')].to('code_length').v
+                    r_pos = reg[('PartType2','particle_position')].to('code_length').v
 
             
             if lim_index > 0:
                 #The other nth-most refined particles are taken in the less-refined arrays
                 mlim = np.sort(np.array(list(set(lr_m))))[lim_index-1]
-                r_x = lr_x[lr_m <= mlim]
-                r_y = lr_y[lr_m <= mlim]
-                r_z = lr_z[lr_m <= mlim]
+                r_pos = lr_pos[lr_m <= mlim]
                 #after obtaining the nth-most refined particles, the rest are less-refined
-                lr_x = lr_x[lr_m > mlim]
-                lr_y = lr_y[lr_m > mlim]
-                lr_z = lr_z[lr_m > mlim]
+                lr_pos = lr_pos[lr_m > mlim]
         
         #CHOOSING THE LAYER OF REFINEMENT FOR AMR CODES (all dark matter particles are put in one array)
         if code_name == 'RAMSES' or code_name == 'ART' or code_name == 'CHANGA':
             #Selecting the layer of refined particles
             mlim = np.sort(np.array(list(set(lr_m))))[lim_index]
-            r_x = lr_x[lr_m <= mlim]
-            r_y = lr_y[lr_m <= mlim]
-            r_z = lr_z[lr_m <= mlim]
+            r_pos = lr_pos[lr_m <= mlim]
             #after obtaining the nth-most refined particles, the rest are less-refined
-            lr_x = lr_x[lr_m > mlim]
-            lr_y = lr_y[lr_m > mlim]
-            lr_z = lr_z[lr_m > mlim]
-
+            lr_pos = lr_pos[lr_m > mlim]
         
-        boundary = all_refined_region(r_x, r_y, r_z, lr_x, lr_y, lr_z,spacing=spacing)
+        boundary = all_refined_region(r_pos, lr_pos, spacing=spacing)
 
         idx = list(gs_full).index(snapshot)
 
