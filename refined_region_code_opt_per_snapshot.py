@@ -4,6 +4,7 @@ import sys,os
 import glob as glob
 from itertools import product 
 from yt.data_objects.unions import ParticleUnion
+from yt.data_objects.particle_filters import add_particle_filter
 
 yt.enable_parallelism()
 from mpi4py import MPI
@@ -49,6 +50,14 @@ def reduce_range(code_name, directory, ds, ll_all, ur_all, numsegs = 9):
         #Set the spacing to be 1/100000 of the box size
         #spacing = (ds.domain_right_edge.to('code_length').v[0] - ds.domain_left_edge.to('code_length').v[0])/100000
 
+        #filter out dark matter particles for ENZO
+        if code_name == 'ENZO':
+            def darkmatter(pfilter, data):
+                filter_darkmatter = np.logical_and(data["all", "particle_type"] == 1, data["all", "particle_type"] == 4)
+                return filter_darkmatter
+            add_particle_filter("DarkMatter",function=darkmatter,filtered_type='all',requires=["particle_type"])
+            ds.add_particle_filter("DarkMatter")
+
         #combine less-refined particles and refined-particles into one field for GEAR, GIZMO, AREPO, and GADGET3
         if code_name == 'GEAR':
             dm = ParticleUnion("DarkMatter",["PartType5","PartType2"])
@@ -60,7 +69,7 @@ def reduce_range(code_name, directory, ds, ll_all, ur_all, numsegs = 9):
             dm = ParticleUnion("DarkMatter",["PartType2","PartType1"])
             ds.add_particle_union(dm)
 
-        lr_name_dict = {'GEAR': 'DarkMatter', 'GADGET3': 'DarkMatter', 'AREPO': 'DarkMatter', 'GIZMO': 'DarkMatter', 'RAMSES': 'DM', 'ART': 'darkmatter', 'CHANGA': 'DarkMatter'}
+        lr_name_dict = {'ENZO':'DarkMatter','GEAR': 'DarkMatter', 'GADGET3': 'DarkMatter', 'AREPO': 'DarkMatter', 'GIZMO': 'DarkMatter', 'RAMSES': 'DM', 'ART': 'darkmatter', 'CHANGA': 'DarkMatter'}
         lr_m = reg[(lr_name_dict[code_name],'particle_mass')].to('Msun').v
 
         mset = np.sort(np.array(list(set(lr_m))))
@@ -562,6 +571,12 @@ def extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_
         #reg = ds.box(ll-buffer, ur+buffer)
         reg = ds.box(ll, ur)
 
+        if code_name == 'ENZO':
+            def darkmatter(pfilter, data):
+                filter_darkmatter = np.logical_and(data["all", "particle_type"] == 1, data["all", "particle_type"] == 4)
+                return filter_darkmatter
+            add_particle_filter("DarkMatter",function=darkmatter,filtered_type='all',requires=["particle_type"])
+            ds.add_particle_filter("DarkMatter")
         if code_name == 'GEAR':
             dm = ParticleUnion("DarkMatter",["PartType5","PartType2"])
             ds.add_particle_union(dm)
@@ -572,7 +587,7 @@ def extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_
             dm = ParticleUnion("DarkMatter",["PartType2","PartType1"])
             ds.add_particle_union(dm)
 
-        lr_name_dict = {'GEAR': 'DarkMatter', 'GADGET3': 'DarkMatter', 'AREPO': 'DarkMatter', 'GIZMO': 'DarkMatter', 'RAMSES': 'DM', 'ART': 'darkmatter', 'CHANGA': 'DarkMatter'}
+        lr_name_dict = {'ENZO':'DarkMatter','GEAR': 'DarkMatter', 'GADGET3': 'DarkMatter', 'AREPO': 'DarkMatter', 'GIZMO': 'DarkMatter', 'RAMSES': 'DM', 'ART': 'darkmatter', 'CHANGA': 'DarkMatter'}
         
         dm_m = reg[(lr_name_dict[code_name],'particle_mass')].to('Msun').v
         dm_pos = reg[(lr_name_dict[code_name],'particle_position')].to('code_length').v
