@@ -522,7 +522,7 @@ def find_maximized_region(pos,segdist):
     box_max = box_list[np.argmax(box_vol_list)]
     return box_max    
 
-def extend_initial_refined_region(init_refined_region, segdist, mlim_list, lim_index, code_name, ds):
+def extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_index, code_name, ds):
     refined_region = np.ones((2,3)) #create a placeholder for the refined region
     #locating the boxes surrounding the initial refined region
     surrounding_boxes = []
@@ -577,20 +577,39 @@ def extend_initial_refined_region(init_refined_region, segdist, mlim_list, lim_i
         dm_m = reg[(lr_name_dict[code_name],'particle_mass')].to('Msun').v
         dm_pos = reg[(lr_name_dict[code_name],'particle_position')].to('code_length').v
 
-        lr_dm_pos = dm_pos[dm_m > np.sort(list(set(mlim_list)))[lim_index]] 
-        
+        #lr_dm_pos = dm_pos[dm_m > np.sort(list(set(mlim_list)))[lim_index]] 
+        lr_dm_pos = dm_pos[dm_m > all_m_list[lim_index]] 
+
+        sto.result = {}
+        sto.result[0] = direction
+    
         if direction == 'pos_x':
-            refined_region[1][0] = np.min(lr_dm_pos[:,0])
+            sto.result[1] = np.min(lr_dm_pos[:,0])
         elif direction == 'neg_x':
-            refined_region[0][0] = np.max(lr_dm_pos[:,0])
+            sto.result[1] = np.max(lr_dm_pos[:,0])
         elif direction == 'pos_y':
-            refined_region[1][1] = np.min(lr_dm_pos[:,1])
+            sto.result[1] = np.min(lr_dm_pos[:,1])
         elif direction == 'neg_y':
-            refined_region[0][1] = np.max(lr_dm_pos[:,1])
+            sto.result[1] = np.max(lr_dm_pos[:,1])
         elif direction == 'pos_z':
-            refined_region[1][2] = np.min(lr_dm_pos[:,2])
+            sto.result[1] = np.min(lr_dm_pos[:,2])
         elif direction == 'neg_z':
-            refined_region[0][2] = np.max(lr_dm_pos[:,2])
+            sto.result[1] = np.max(lr_dm_pos[:,2])
+    
+    for c, vals in sorted(my_storage.items()):
+        if vals[0] == 'pos_x':
+            refined_region[1][0] = vals[1]
+        elif vals[0] == 'neg_x':
+            refined_region[0][0] = vals[1]
+        elif vals[0] == 'pos_y':
+            refined_region[1][1] = vals[1]
+        elif vals[0] == 'neg_y':
+            refined_region[0][1] = vals[1]
+        elif vals[0] == 'pos_z':
+            refined_region[1][2] = vals[1]
+        elif vals[0] == 'neg_z':
+            refined_region[0][2] = vals[1]
+
     return refined_region
 
 #-----------------------------------------------------------------------------------------
@@ -603,6 +622,7 @@ lim_index = 1 #refined region up to the second highest level (0 for first, 1 for
 
 ds = yt.load(directory + 'snapshot_010/snapshot_010.0.hdf5')
 seg_pos_list, mset_list, segdist = reduce_range(code_name, directory, ds, ds.domain_left_edge.v, ds.domain_right_edge.v)
+
 pre_output = {}
 pre_output[0] = seg_pos_list
 pre_output[1] = mset_list
@@ -610,7 +630,7 @@ pre_output[2] = segdist
 if yt.is_root():
     np.save(directory + 'pre_output.npy', pre_output)
 
-all_m_list = np.sort(list(set(np.concatenate(mset_list))))
+all_m_list = np.sort(list(set(np.concatenate(mset_list)))) #list of all dark matter mass levels 
 refined_bool = np.empty(seg_pos_list.shape[0],dtype=bool)
 for i in range(len(mset_list)):
     if max(mset_list[i]) <= all_m_list[lim_index]:
@@ -628,13 +648,19 @@ while sum(refined_bool) == 0: #if there is no refined region found, reduce the r
     reduced_pos = seg_pos_list[reduced_bool]
     reduced_pos = np.round(reduced_pos,decimals=10)
     reduced_region = find_maximized_region(reduced_pos,segdist)
-    seg_pos_list, mlim_list, mtype_list, segdist = reduce_range(code_name, directory, ds, reduced_region[0], reduced_region[1])
-    refined_bool = np.logical_and(mlim_list == np.sort(list(set(mlim_list)))[lim_index], mtype_list <= lim_index + 1)
+    seg_pos_list, mset_list, segdist = reduce_range(code_name, directory, ds, reduced_region[0], reduced_region[1])
+    refined_bool = np.empty(seg_pos_list.shape[0],dtype=bool)
+    for i in range(len(mset_list)):
+        if max(mset_list[i]) <= all_m_list[lim_index]:
+            refined_bool[i] = True
+        else:
+            refined_bool[i] = False
+    #refined_bool = np.logical_and(mlim_list == np.sort(list(set(mlim_list)))[lim_index], mtype_list <= lim_index + 1)
 
 refined_pos = seg_pos_list[refined_bool]
 refined_pos = np.round(refined_pos,decimals=10) #just to make sure there is no floating point error
 init_refined_region = find_maximized_region(refined_pos,segdist)
-refined_region = extend_initial_refined_region(init_refined_region, segdist, mlim_list, lim_index, code_name, ds)
+refined_region = extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_index, code_name, ds)
 
 if yt.is_root():
     np.save(directory + 'refined_region.npy', refined_region) #save the refined region
