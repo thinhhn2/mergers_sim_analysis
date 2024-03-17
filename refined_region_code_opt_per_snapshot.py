@@ -63,31 +63,20 @@ def reduce_range(code_name, directory, ds, ll_all, ur_all, numsegs = 9):
         lr_name_dict = {'GEAR': 'DarkMatter', 'GADGET3': 'DarkMatter', 'AREPO': 'DarkMatter', 'GIZMO': 'DarkMatter', 'RAMSES': 'DM', 'ART': 'darkmatter', 'CHANGA': 'DarkMatter'}
         lr_m = reg[(lr_name_dict[code_name],'particle_mass')].to('Msun').v
 
-        #CHOOSING THE LAYER OF REFINEMENT FOR SPH CODES (most refined and other dark matter particles are put in different arrays)
-        if code_name == 'GADGET3' or code_name == 'AREPO' or code_name == 'GIZMO' or code_name == 'GEAR':
-            mmin = np.sort(np.array(list(set(lr_m))))[0]
-            mtype = len(list(set(lr_m)))
-        
-        #CHOOSING THE LAYER OF REFINEMENT FOR AMR CODES (all dark matter particles are put in one array)
-        if code_name == 'RAMSES' or code_name == 'ART' or code_name == 'CHANGA':
-            mmin = np.sort(np.array(list(set(lr_m))))[0]
-            mtype = len(list(set(lr_m)))
+        mset = np.sort(np.array(list(set(lr_m))))
         
         sto.result = {}
         sto.result[0] = [ll[i],ur[i]]
-        sto.result[1] = mmin
-        sto.result[2] = mtype
+        sto.result[1] = mset
         
     #Re-arrange the dictionary from redshift-sort to tree-location-sort
     seg_pos_list = []
-    mlim_list = []
-    mtype_list = []
+    mset_list = []
     for c, vals in sorted(my_storage.items()):
         seg_pos_list.append(vals[0])
-        mlim_list.append(vals[1])
-        mtype_list.append(vals[2])
+        mset_list.append(vals[1])
 
-    return np.array(seg_pos_list), np.array(mlim_list), np.array(mtype_list), segdist
+    return np.array(seg_pos_list), mset_list, segdist
         
 def volume_cal(ll,ur):
     return np.product(np.array(ur) - np.array(ll))    
@@ -613,11 +602,29 @@ directory = '/scratch/bbvl/tnguyen2/sandbox/refined_region_optz/'
 lim_index = 1 #refined region up to the second highest level (0 for first, 1 for second, 2 for third, etc.)
 
 ds = yt.load(directory + 'snapshot_010/snapshot_010.0.hdf5')
-seg_pos_list, mlim_list, mtype_list, segdist = reduce_range(code_name, directory, ds, ds.domain_left_edge.v, ds.domain_right_edge.v)
-refined_bool = np.logical_and(mlim_list == np.sort(list(set(mlim_list)))[lim_index], mtype_list <= lim_index + 1) #assuming that there is no subbox with uncontinuous levels of refinement (for example, a subbox with level 1 and 3; without level 2)
+seg_pos_list, mset_list, segdist = reduce_range(code_name, directory, ds, ds.domain_left_edge.v, ds.domain_right_edge.v)
+pre_output = {}
+pre_output[0] = seg_pos_list
+pre_output[1] = mset_list
+pre_output[2] = segdist
+if yt.is_root():
+    np.save(directory + 'pre_output.npy', pre_output)
+
+all_m_list = np.sort(list(set(np.concatenate(mset_list))))
+refined_bool = np.empty(seg_pos_list.shape[0],dtype=bool)
+for i in range(len(mset_list)):
+    if max(mset_list[i]) <= all_m_list[lim_index]:
+        refined_bool[i] = True
+    else:
+        refined_bool[i] = False
 
 while sum(refined_bool) == 0: #if there is no refined region found, reduce the range until we find one
-    reduced_bool = np.logical_and(mlim_list == np.sort(list(set(mlim_list)))[lim_index], mtype_list <= lim_index + 2)
+    reduced_bool = np.empty(seg_pos_list.shape[0],dtype=bool)
+    for i in range(len(mset_list)):
+        if all_m_list[lim_index] in mset_list[i]:
+            reduced_bool[i] = True
+        else:
+            reduced_bool[i] = False
     reduced_pos = seg_pos_list[reduced_bool]
     reduced_pos = np.round(reduced_pos,decimals=10)
     reduced_region = find_maximized_region(reduced_pos,segdist)
