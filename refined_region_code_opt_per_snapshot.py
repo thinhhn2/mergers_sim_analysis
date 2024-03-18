@@ -133,9 +133,9 @@ def find_lines(ll_pos,segdist,direction):
             group_divider = np.where(~group_bool)[0]
             start_idx = 0
             group_sep = []
-            for i in group_divider:
-                group_sep.append(group[start_idx:i])
-                start_idx = i
+            for divider in group_divider:
+                group_sep.append(group[start_idx:divider])
+                start_idx = divider
             group_sep.append(group[start_idx:len(group)])
             line_list[base[i]] = group_sep
             #if len(group_sep) > 1:
