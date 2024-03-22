@@ -12,7 +12,7 @@ comm = MPI.COMM_WORLD
 rank = comm.rank
 nprocs = comm.size
 
-def reduce_range(code_name, directory, ds, ll_all, ur_all, numsegs = 9):
+def reduce_range(code_name, directory, ds, ll_all, ur_all, numsegs = 9, subdivide = False, previous_segdist = None):
     """
     This function divides a specific domain (given by ll_all and ur_all) into (numsegs-1)^3 segments to speed up the loading process
     and returns the coordinates of the initial refiend region (which will be further refined later)
@@ -25,8 +25,17 @@ def reduce_range(code_name, directory, ds, ll_all, ur_all, numsegs = 9):
     os.chdir(directory)
 
     #ll_all,ur_all = ds.domain_left_edge, ds.domain_right_edge
-    xx,yy,zz = np.meshgrid(np.linspace(ll_all[0],ur_all[0],numsegs),\
-                np.linspace(ll_all[1],ur_all[1],numsegs),np.linspace(ll_all[2],ur_all[2],numsegs))
+    if subdivide == False:
+        xx,yy,zz = np.meshgrid(np.linspace(ll_all[0],ur_all[0],numsegs),\
+                    np.linspace(ll_all[1],ur_all[1],numsegs),np.linspace(ll_all[2],ur_all[2],numsegs))
+        
+        _,segdist = np.linspace(ll_all[0],ur_all[0],numsegs,retstep=True)
+    
+    if subdivide == True:
+        segdist = previous_segdist/(numsegs - 1)
+        xx,yy,zz = np.meshgrid(np.arange(ll_all[0],ur_all[0] + segdist,segdist),\
+                    np.arange(ll_all[1],ur_all[1] + segdist,segdist),np.arange(ll_all[2],ur_all[2] + segdist,segdist))
+
         
     ll = np.concatenate((xx[:-1,:-1,:-1,np.newaxis],yy[:-1,:-1,:-1,np.newaxis],zz[:-1,:-1,:-1,np.newaxis]),axis=3) #ll is lowerleft
     ur = np.concatenate((xx[1:,1:,1:,np.newaxis],yy[1:,1:,1:,np.newaxis],zz[1:,1:,1:,np.newaxis]),axis=3) #ur is upperright
@@ -36,7 +45,6 @@ def reduce_range(code_name, directory, ds, ll_all, ur_all, numsegs = 9):
     ll = np.reshape(ll,(ll.shape[0]**3,3))
     ur = np.reshape(ur,(ur.shape[0]**3,3))
 
-    _,segdist = np.linspace(ll_all[0],ur_all[0],numsegs,retstep=True)
 
     #Runnning parallel to obtain the refined region for each snapshot
     my_storage = {}
@@ -627,6 +635,76 @@ def extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_
 
     return refined_region
 
+def extend_initial_refined_region_ver2(init_refined_region, segdist, all_m_list, lim_index, code_name, ds):
+    refined_region = np.ones((2,3)) #create a placeholder for the refined region
+
+    surrounded_box = [np.array(init_refined_region[0]) - segdist, np.array(init_refined_region[1]) - segdist]
+    reg = ds.box(surrounded_box[0], surrounded_box[1])
+
+    if code_name == 'ENZO':
+        def darkmatter(pfilter, data):
+            filter_darkmatter = np.logical_and(data["all", "particle_type"] == 1, data["all", "particle_type"] == 4)
+            return filter_darkmatter
+        add_particle_filter("DarkMatter",function=darkmatter,filtered_type='all',requires=["particle_type"])
+        ds.add_particle_filter("DarkMatter")
+
+    #combine less-refined particles and refined-particles into one field for GEAR, GIZMO, AREPO, and GADGET3
+    if code_name == 'GEAR':
+        dm = ParticleUnion("DarkMatter",["PartType5","PartType2"])
+        ds.add_particle_union(dm)
+    if code_name == 'GADGET3':
+        dm = ParticleUnion("DarkMatter",["PartType5","PartType1"])
+        ds.add_particle_union(dm)
+    if code_name == 'AREPO' or code_name == 'GIZMO':
+        dm = ParticleUnion("DarkMatter",["PartType2","PartType1"])
+        ds.add_particle_union(dm)
+
+    dm_name_dict = {'ENZO':'DarkMatter','GEAR': 'DarkMatter', 'GADGET3': 'DarkMatter', 'AREPO': 'DarkMatter', 'GIZMO': 'DarkMatter', 'RAMSES': 'DM', 'ART': 'darkmatter', 'CHANGA': 'DarkMatter'}
+    dm_m = reg[(dm_name_dict[code_name],'particle_mass')].to('Msun').v
+    dm_pos = reg[(dm_name_dict[code_name],'particle_position')].to('code_length').v
+
+    lr_pos = dm_pos[dm_m > all_m_list[lim_index]]
+
+    box = np.array([
+        surrounded_box[0],
+        surrounded_box[1]])
+    
+    spacing = (ds.domain_right_edge.to('code_length').v[0] - ds.domain_left_edge.to('code_length').v[0])/100000
+
+    # Define the six directions as 3D vectors
+    directions = np.array([
+        [[-spacing, 0, 0],[0,0,0]],  # min_x
+        [[0,0,0],[spacing, 0, 0]],   # max_x
+        [[0, -spacing, 0],[0,0,0]],  # min_y
+        [[0,0,0],[0, spacing, 0]],   # max_y
+        [[0, 0, -spacing],[0,0,0]],  # min_z
+        [[0,0,0],[0, 0, spacing]]    # max_z
+    ])
+
+    # Initialize the stop flags
+    stop_flags = np.array([False, False, False, False, False, False])
+
+    # While not all directions are stopped
+    while not np.all(stop_flags):
+        # For each direction
+        for i in range(6):
+            # If this direction is not stopped
+            if stop_flags[i] == False:
+                # Try to expand the box in this direction
+                new_box = box + directions[i]
+                
+                # Check if there are any less-refined particles in the expanded region
+                boolean = np.all((lr_pos > new_box[0]) & (lr_pos < new_box[1]), axis=1)
+                
+                # If there are no less-refined particles, update the box
+                if not np.any(boolean):
+                    box = new_box
+                # Otherwise, stop this direction
+                else:
+                    stop_flags[i] = True
+
+    return [box[0],box[1]]
+
 #-----------------------------------------------------------------------------------------
 #Main code
 #code_name = sys.argv[1]
@@ -663,7 +741,7 @@ while sum(refined_bool) == 0: #if there is no refined region found, reduce the r
     reduced_pos = seg_pos_list[reduced_bool]
     reduced_pos = np.round(reduced_pos,decimals=10)
     reduced_region = find_maximized_region(reduced_pos,segdist)
-    seg_pos_list, mset_list, segdist = reduce_range(code_name, directory, ds, reduced_region[0], reduced_region[1])
+    seg_pos_list, mset_list, segdist = reduce_range(code_name, directory, ds, reduced_region[0], reduced_region[1], subdivide=True, previous_segdist=segdist)
     refined_bool = np.empty(seg_pos_list.shape[0],dtype=bool)
     for i in range(len(mset_list)):
         if max(mset_list[i]) <= all_m_list[lim_index]:
@@ -675,7 +753,8 @@ while sum(refined_bool) == 0: #if there is no refined region found, reduce the r
 refined_pos = seg_pos_list[refined_bool]
 refined_pos = np.round(refined_pos,decimals=10) #just to make sure there is no floating point error
 init_refined_region = find_maximized_region(refined_pos,segdist)
-refined_region = extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_index, code_name, ds)
+#refined_region = extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_index, code_name, ds)
+refined_region = extend_initial_refined_region_ver2(init_refined_region, segdist, all_m_list, lim_index, code_name, ds)
 
 if yt.is_root():
     np.save(directory + 'refined_region.npy', refined_region) #save the refined region
