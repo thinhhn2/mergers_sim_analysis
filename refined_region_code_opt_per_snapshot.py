@@ -671,10 +671,10 @@ def extend_initial_refined_region_ver2(init_refined_region, segdist, all_m_list,
     # Define the six directions as 3D vectors
     directions = np.array([
         [[-spacing, 0, 0],[0,0,0]],  # min_x
-        [[0,0,0],[spacing, 0, 0]],   # max_x
         [[0, -spacing, 0],[0,0,0]],  # min_y
-        [[0,0,0],[0, spacing, 0]],   # max_y
         [[0, 0, -spacing],[0,0,0]],  # min_z
+        [[0,0,0],[spacing, 0, 0]],   # max_x
+        [[0,0,0],[0, spacing, 0]],   # max_y
         [[0,0,0],[0, 0, spacing]]    # max_z
     ])
 
@@ -689,12 +689,23 @@ def extend_initial_refined_region_ver2(init_refined_region, segdist, all_m_list,
             if stop_flags[i] == False:
                 # Try to expand the box in this direction
                 new_box = box + directions[i]
+
+                #If the new box expand beyond the surrounded boundary (in a direction), set the value of the new box equal to the surrounded boundary (in that direction)
+                loc = int(i/3), i % 3 #loc is the location of the direction in the box (remember the box is set by np.array([minx, miny, minz], [maxx, maxy, maxz]))
+                if i < 3: #for the minimum (lower left) expansion
+                    if new_box[loc[0]][loc[1]] < surrounded_box[loc[0]][loc[1]]:
+                        new_box[loc[0]][loc[1]] = surrounded_box[loc[0]][loc[1]]
+                        stop_flags[i] = True
+                elif i >= 3: #for the maximum (upper right) expansion
+                    if new_box[loc[0]][loc[1]] > surrounded_box[loc[0]][loc[1]]:
+                        new_box[loc[0]][loc[1]] = surrounded_box[loc[0]][loc[1]]
+                        stop_flags[i] = True
                 
                 # Check if there are any less-refined particles in the expanded region
                 boolean = np.all((lr_pos > new_box[0]) & (lr_pos < new_box[1]), axis=1)
                 
-                # If there are no less-refined particles and the new box doesn't reach the surrounded boundary, update the box
-                if not np.any(boolean) and np.all(new_box[0] >= surrounded_box[0]) and np.all(new_box[1] <= surrounded_box[1]):
+                # If there are no less-refined particles, update the box
+                if not np.any(boolean):
                     box = new_box
                 # Otherwise, stop this direction
                 else:
