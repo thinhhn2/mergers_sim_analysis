@@ -31,7 +31,7 @@ def reduce_range(code_name, directory, ds, ll_all, ur_all, numsegs = 9, subdivid
         
         _,segdist = np.linspace(ll_all[0],ur_all[0],numsegs,retstep=True)
     
-    if subdivide == True:
+    elif subdivide == True:
         segdist = previous_segdist/(numsegs - 1)
         xx,yy,zz = np.meshgrid(np.arange(ll_all[0],ur_all[0] + segdist,segdist),\
                     np.arange(ll_all[1],ur_all[1] + segdist,segdist),np.arange(ll_all[2],ur_all[2] + segdist,segdist))
@@ -42,8 +42,8 @@ def reduce_range(code_name, directory, ds, ll_all, ur_all, numsegs = 9, subdivid
 
     #ll = np.reshape(ll,(ll.shape[0]**3,3)).v
     #ur = np.reshape(ur,(ur.shape[0]**3,3)).v
-    ll = np.reshape(ll,(ll.shape[0]**3,3))
-    ur = np.reshape(ur,(ur.shape[0]**3,3))
+    ll = np.reshape(ll,(ll.shape[0]*ll.shape[1]*ll.shape[2],3))
+    ur = np.reshape(ur,(ur.shape[0]*ur.shape[1]*ur.shape[2],3))
 
 
     #Runnning parallel to obtain the refined region for each snapshot
@@ -96,7 +96,7 @@ def reduce_range(code_name, directory, ds, ll_all, ur_all, numsegs = 9, subdivid
     return np.array(seg_pos_list), mset_list, segdist
         
 def volume_cal(ll,ur):
-    return np.product(np.array(ur) - np.array(ll))    
+    return np.prod(np.array(ur) - np.array(ll))    
 
 def find_lines(ll_pos,segdist,direction):
     """
@@ -636,9 +636,8 @@ def extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_
     return refined_region
 
 def extend_initial_refined_region_ver2(init_refined_region, segdist, all_m_list, lim_index, code_name, ds):
-    refined_region = np.ones((2,3)) #create a placeholder for the refined region
 
-    surrounded_box = [np.array(init_refined_region[0]) - segdist, np.array(init_refined_region[1]) - segdist]
+    surrounded_box = [np.array(init_refined_region[0]) - segdist, np.array(init_refined_region[1]) + segdist]
     reg = ds.box(surrounded_box[0], surrounded_box[1])
 
     if code_name == 'ENZO':
@@ -665,9 +664,7 @@ def extend_initial_refined_region_ver2(init_refined_region, segdist, all_m_list,
 
     lr_pos = dm_pos[dm_m > all_m_list[lim_index]]
 
-    box = np.array([
-        surrounded_box[0],
-        surrounded_box[1]])
+    box = np.array([init_refined_region[0],init_refined_region[1]])
     
     spacing = (ds.domain_right_edge.to('code_length').v[0] - ds.domain_left_edge.to('code_length').v[0])/100000
 
@@ -696,8 +693,8 @@ def extend_initial_refined_region_ver2(init_refined_region, segdist, all_m_list,
                 # Check if there are any less-refined particles in the expanded region
                 boolean = np.all((lr_pos > new_box[0]) & (lr_pos < new_box[1]), axis=1)
                 
-                # If there are no less-refined particles, update the box
-                if not np.any(boolean):
+                # If there are no less-refined particles and the new box doesn't reach the surrounded boundary, update the box
+                if not np.any(boolean) and np.all(new_box[0] >= surrounded_box[0]) and np.all(new_box[1] <= surrounded_box[1]):
                     box = new_box
                 # Otherwise, stop this direction
                 else:
@@ -713,7 +710,7 @@ code_name = 'GADGET3'
 directory = '/scratch/bbvl/tnguyen2/sandbox/refined_region_optz/'
 lim_index = 1 #refined region up to the second highest level (0 for first, 1 for second, 2 for third, etc.)
 
-ds = yt.load(directory + 'snapshot_010/snapshot_010.0.hdf5')
+ds = yt.load(directory + 'snapshot_304/snapshot_304.0.hdf5')
 seg_pos_list, mset_list, segdist = reduce_range(code_name, directory, ds, ds.domain_left_edge.v, ds.domain_right_edge.v)
 
 pre_output = {}
@@ -721,7 +718,7 @@ pre_output[0] = seg_pos_list
 pre_output[1] = mset_list
 pre_output[2] = segdist
 if yt.is_root():
-    np.save(directory + 'pre_output.npy', pre_output)
+    np.save(directory + 'pre_output_304.npy', pre_output)
 
 all_m_list = np.sort(list(set(np.concatenate(mset_list)))) #list of all dark matter mass levels 
 refined_bool = np.empty(seg_pos_list.shape[0],dtype=bool)
@@ -752,10 +749,23 @@ while sum(refined_bool) == 0: #if there is no refined region found, reduce the r
 
 refined_pos = seg_pos_list[refined_bool]
 refined_pos = np.round(refined_pos,decimals=10) #just to make sure there is no floating point error
+
+pre_output_2 = {}
+pre_output_2[0] = seg_pos_list
+pre_output_2[1] = mset_list
+pre_output_2[2] = segdist
+pre_output_2[3] = refined_pos
+if yt.is_root():
+    np.save(directory + 'pre_output_2_304.npy', pre_output_2)
+
 init_refined_region = find_maximized_region(refined_pos,segdist)
+
+if yt.is_root():
+    np.save(directory + 'init_refined_region_304.npy', init_refined_region)
+
 #refined_region = extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_index, code_name, ds)
 refined_region = extend_initial_refined_region_ver2(init_refined_region, segdist, all_m_list, lim_index, code_name, ds)
 
 if yt.is_root():
-    np.save(directory + 'refined_region.npy', refined_region) #save the refined region
+    np.save(directory + 'refined_region_304.npy', refined_region) #save the refined region
 
