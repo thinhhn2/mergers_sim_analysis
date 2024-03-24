@@ -5,6 +5,7 @@ import glob as glob
 from itertools import product 
 from yt.data_objects.unions import ParticleUnion
 from yt.data_objects.particle_filters import add_particle_filter
+import time
 
 yt.enable_parallelism()
 from mpi4py import MPI
@@ -540,102 +541,6 @@ def find_maximized_region(pos,segdist):
     return box_max    
 
 def extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_index, code_name, ds):
-    refined_region = np.ones((2,3)) #create a placeholder for the refined region
-    #locating the boxes surrounding the initial refined region
-    surrounding_boxes = []
-    direction_list = ['pos_x','neg_x','pos_y','neg_y','pos_z','neg_z']
-    for direction in direction_list: #build the surrounding boxes in 6 directions (to allow parallelization)
-        if direction == 'pos_x':
-            surround_ll = np.array([init_refined_region[1][0], init_refined_region[0][1] - segdist, init_refined_region[0][2] - segdist])
-            surround_ur = np.array([init_refined_region[1][0] + segdist, init_refined_region[1][1] + segdist, init_refined_region[1][2] + segdist])
-            surrounding_boxes.append([direction,surround_ll,surround_ur])
-        elif direction == 'neg_x':
-            surround_ll = np.array([init_refined_region[0][0] - segdist, init_refined_region[0][1] - segdist, init_refined_region[0][2] - segdist])
-            surround_ur = np.array([init_refined_region[0][0], init_refined_region[1][1] + segdist, init_refined_region[1][2] + segdist])
-            surrounding_boxes.append([direction,surround_ll,surround_ur])
-        elif direction == 'pos_y':
-            surround_ll = np.array([init_refined_region[0][0] - segdist, init_refined_region[1][1], init_refined_region[0][2] - segdist])
-            surround_ur = np.array([init_refined_region[1][0] + segdist, init_refined_region[1][1] + segdist, init_refined_region[1][2] + segdist])
-            surrounding_boxes.append([direction,surround_ll,surround_ur])
-        elif direction == 'neg_y':
-            surround_ll = np.array([init_refined_region[0][0] - segdist, init_refined_region[0][1] - segdist, init_refined_region[0][2] - segdist])
-            surround_ur = np.array([init_refined_region[1][0] + segdist, init_refined_region[0][1], init_refined_region[1][2] + segdist])
-            surrounding_boxes.append([direction,surround_ll,surround_ur])
-        elif direction == 'pos_z':
-            surround_ll = np.array([init_refined_region[0][0] - segdist, init_refined_region[0][1] - segdist, init_refined_region[1][2]])
-            surround_ur = np.array([init_refined_region[1][0] + segdist, init_refined_region[1][1] + segdist, init_refined_region[1][2] + segdist])
-            surrounding_boxes.append([direction,surround_ll,surround_ur])
-        elif direction == 'neg_z':
-            surround_ll = np.array([init_refined_region[0][0] - segdist, init_refined_region[0][1] - segdist, init_refined_region[0][2] - segdist])
-            surround_ur = np.array([init_refined_region[1][0] + segdist, init_refined_region[1][1] + segdist, init_refined_region[0][2]])
-            surrounding_boxes.append([direction,surround_ll,surround_ur])
-
-    my_storage = {}
-    for sto, i in yt.parallel_objects(range(len(surrounding_boxes)), nprocs, storage = my_storage):
-        direction = surrounding_boxes[i][0]
-        ll = surrounding_boxes[i][1]
-        ur = surrounding_boxes[i][2]
-        #buffer =(segdist/100)*ds.units.code_length #set buffer when loading the box
-        #reg = ds.box(ll-buffer, ur+buffer)
-        reg = ds.box(ll, ur)
-
-        if code_name == 'ENZO':
-            def darkmatter(pfilter, data):
-                filter_darkmatter = np.logical_and(data["all", "particle_type"] == 1, data["all", "particle_type"] == 4)
-                return filter_darkmatter
-            add_particle_filter("DarkMatter",function=darkmatter,filtered_type='all',requires=["particle_type"])
-            ds.add_particle_filter("DarkMatter")
-        if code_name == 'GEAR':
-            dm = ParticleUnion("DarkMatter",["PartType5","PartType2"])
-            ds.add_particle_union(dm)
-        if code_name == 'GADGET3':
-            dm = ParticleUnion("DarkMatter",["PartType5","PartType1"])
-            ds.add_particle_union(dm)
-        if code_name == 'AREPO' or code_name == 'GIZMO':
-            dm = ParticleUnion("DarkMatter",["PartType2","PartType1"])
-            ds.add_particle_union(dm)
-
-        lr_name_dict = {'ENZO':'DarkMatter','GEAR': 'DarkMatter', 'GADGET3': 'DarkMatter', 'AREPO': 'DarkMatter', 'GIZMO': 'DarkMatter', 'RAMSES': 'DM', 'ART': 'darkmatter', 'CHANGA': 'DarkMatter'}
-        
-        dm_m = reg[(lr_name_dict[code_name],'particle_mass')].to('Msun').v
-        dm_pos = reg[(lr_name_dict[code_name],'particle_position')].to('code_length').v
-
-        #lr_dm_pos = dm_pos[dm_m > np.sort(list(set(mlim_list)))[lim_index]] 
-        lr_dm_pos = dm_pos[dm_m > all_m_list[lim_index]] 
-
-        sto.result = {}
-        sto.result[0] = direction
-    
-        if direction == 'pos_x':
-            sto.result[1] = np.min(lr_dm_pos[:,0])
-        elif direction == 'neg_x':
-            sto.result[1] = np.max(lr_dm_pos[:,0])
-        elif direction == 'pos_y':
-            sto.result[1] = np.min(lr_dm_pos[:,1])
-        elif direction == 'neg_y':
-            sto.result[1] = np.max(lr_dm_pos[:,1])
-        elif direction == 'pos_z':
-            sto.result[1] = np.min(lr_dm_pos[:,2])
-        elif direction == 'neg_z':
-            sto.result[1] = np.max(lr_dm_pos[:,2])
-    
-    for c, vals in sorted(my_storage.items()):
-        if vals[0] == 'pos_x':
-            refined_region[1][0] = vals[1]
-        elif vals[0] == 'neg_x':
-            refined_region[0][0] = vals[1]
-        elif vals[0] == 'pos_y':
-            refined_region[1][1] = vals[1]
-        elif vals[0] == 'neg_y':
-            refined_region[0][1] = vals[1]
-        elif vals[0] == 'pos_z':
-            refined_region[1][2] = vals[1]
-        elif vals[0] == 'neg_z':
-            refined_region[0][2] = vals[1]
-
-    return refined_region
-
-def extend_initial_refined_region_ver2(init_refined_region, segdist, all_m_list, lim_index, code_name, ds):
 
     surrounded_box = [np.array(init_refined_region[0]) - segdist, np.array(init_refined_region[1]) + segdist]
     reg = ds.box(surrounded_box[0], surrounded_box[1])
@@ -696,10 +601,12 @@ def extend_initial_refined_region_ver2(init_refined_region, segdist, all_m_list,
                     if new_box[loc[0]][loc[1]] < surrounded_box[loc[0]][loc[1]]:
                         new_box[loc[0]][loc[1]] = surrounded_box[loc[0]][loc[1]]
                         stop_flags[i] = True
+                        print('Min expasion prohibited in direction',i)
                 elif i >= 3: #for the maximum (upper right) expansion
                     if new_box[loc[0]][loc[1]] > surrounded_box[loc[0]][loc[1]]:
                         new_box[loc[0]][loc[1]] = surrounded_box[loc[0]][loc[1]]
                         stop_flags[i] = True
+                        print('Max expasion prohibited in direction',i)
                 
                 # Check if there are any less-refined particles in the expanded region
                 boolean = np.all((lr_pos > new_box[0]) & (lr_pos < new_box[1]), axis=1)
@@ -710,6 +617,7 @@ def extend_initial_refined_region_ver2(init_refined_region, segdist, all_m_list,
                 # Otherwise, stop this direction
                 else:
                     stop_flags[i] = True
+                    print('Stop because less-refined particles appear in direction',i)
 
     return [box[0],box[1]]
 
@@ -717,8 +625,9 @@ def extend_initial_refined_region_ver2(init_refined_region, segdist, all_m_list,
 #Main code
 #code_name = sys.argv[1]
 #directory = sys.argv[2]
+start_time = time.time()
 code_name = 'GADGET3'
-directory = '/scratch/bbvl/tnguyen2/sandbox/refined_region_optz/'
+directory = '/home/thinhnguyen/Work/Research_with_Kirk/sandbox/'
 lim_index = 1 #refined region up to the second highest level (0 for first, 1 for second, 2 for third, etc.)
 
 ds = yt.load(directory + 'snapshot_304/snapshot_304.0.hdf5')
@@ -758,25 +667,25 @@ while sum(refined_bool) == 0: #if there is no refined region found, reduce the r
             refined_bool[i] = False
     #refined_bool = np.logical_and(mlim_list == np.sort(list(set(mlim_list)))[lim_index], mtype_list <= lim_index + 1)
 
-refined_pos = seg_pos_list[refined_bool]
-refined_pos = np.round(refined_pos,decimals=10) #just to make sure there is no floating point error
-
-pre_output_2 = {}
-pre_output_2[0] = seg_pos_list
-pre_output_2[1] = mset_list
-pre_output_2[2] = segdist
-pre_output_2[3] = refined_pos
 if yt.is_root():
+    refined_pos = seg_pos_list[refined_bool]
+    refined_pos = np.round(refined_pos,decimals=10) #just to make sure there is no floating point error
+
+    pre_output_2 = {}
+    pre_output_2[0] = seg_pos_list
+    pre_output_2[1] = mset_list
+    pre_output_2[2] = segdist
+    pre_output_2[3] = refined_pos
+
     np.save(directory + 'pre_output_2_304.npy', pre_output_2)
 
-init_refined_region = find_maximized_region(refined_pos,segdist)
+    init_refined_region = find_maximized_region(refined_pos,segdist)
 
-if yt.is_root():
     np.save(directory + 'init_refined_region_304.npy', init_refined_region)
 
-#refined_region = extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_index, code_name, ds)
-refined_region = extend_initial_refined_region_ver2(init_refined_region, segdist, all_m_list, lim_index, code_name, ds)
+    #refined_region = extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_index, code_name, ds)
+    refined_region = extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_index, code_name, ds)
 
-if yt.is_root():
     np.save(directory + 'refined_region_304.npy', refined_region) #save the refined region
 
+    print(time.time()-start_time)
