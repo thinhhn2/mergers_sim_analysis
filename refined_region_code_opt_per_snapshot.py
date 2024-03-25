@@ -643,7 +643,7 @@ if yt.is_root():
 all_m_list = np.sort(list(set(np.concatenate(mset_list)))) #list of all dark matter mass levels 
 refined_bool = np.empty(seg_pos_list.shape[0],dtype=bool)
 for i in range(len(mset_list)):
-    if max(mset_list[i]) <= all_m_list[lim_index]:
+    if len(mset_list[i]) > 0 and max(mset_list[i]) <= all_m_list[lim_index]:
         refined_bool[i] = True
     else:
         refined_bool[i] = False
@@ -661,7 +661,7 @@ while sum(refined_bool) == 0: #if there is no refined region found, reduce the r
     seg_pos_list, mset_list, segdist = reduce_range(code_name, directory, ds, reduced_region[0], reduced_region[1], subdivide=True, previous_segdist=segdist)
     refined_bool = np.empty(seg_pos_list.shape[0],dtype=bool)
     for i in range(len(mset_list)):
-        if max(mset_list[i]) <= all_m_list[lim_index]:
+        if len(mset_list[i]) > 0 and max(mset_list[i]) <= all_m_list[lim_index]:
             refined_bool[i] = True
         else:
             refined_bool[i] = False
