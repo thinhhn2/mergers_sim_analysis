@@ -13,7 +13,7 @@ comm = MPI.COMM_WORLD
 rank = comm.rank
 nprocs = comm.size
 
-def reduce_range(code_name, directory, ds, ll_all, ur_all, numsegs = 9, subdivide = False, previous_segdist = None):
+def reduce_range(codetp, directory, ds, ll_all, ur_all, numsegs = 9, subdivide = False, previous_segdist = None):
     """
     This function divides a specific domain (given by ll_all and ur_all) into (numsegs-1)^3 segments to speed up the loading process
     and returns the coordinates of the initial refiend region (which will be further refined later)
@@ -60,7 +60,7 @@ def reduce_range(code_name, directory, ds, ll_all, ur_all, numsegs = 9, subdivid
         #spacing = (ds.domain_right_edge.to('code_length').v[0] - ds.domain_left_edge.to('code_length').v[0])/100000
 
         #filter out dark matter particles for ENZO
-        if code_name == 'ENZO':
+        if codetp == 'ENZO':
             def darkmatter(pfilter, data):
                 filter_darkmatter = np.logical_and(data["all", "particle_type"] == 1, data["all", "particle_type"] == 4)
                 return filter_darkmatter
@@ -68,18 +68,18 @@ def reduce_range(code_name, directory, ds, ll_all, ur_all, numsegs = 9, subdivid
             ds.add_particle_filter("DarkMatter")
 
         #combine less-refined particles and refined-particles into one field for GEAR, GIZMO, AREPO, and GADGET3
-        if code_name == 'GEAR':
+        if codetp == 'GEAR':
             dm = ParticleUnion("DarkMatter",["PartType5","PartType2"])
             ds.add_particle_union(dm)
-        if code_name == 'GADGET3':
+        if codetp == 'GADGET3':
             dm = ParticleUnion("DarkMatter",["PartType5","PartType1"])
             ds.add_particle_union(dm)
-        if code_name == 'AREPO' or code_name == 'GIZMO':
+        if codetp == 'AREPO' or codetp == 'GIZMO':
             dm = ParticleUnion("DarkMatter",["PartType2","PartType1"])
             ds.add_particle_union(dm)
 
         lr_name_dict = {'ENZO':'DarkMatter','GEAR': 'DarkMatter', 'GADGET3': 'DarkMatter', 'AREPO': 'DarkMatter', 'GIZMO': 'DarkMatter', 'RAMSES': 'DM', 'ART': 'darkmatter', 'CHANGA': 'DarkMatter'}
-        lr_m = reg[(lr_name_dict[code_name],'particle_mass')].to('Msun').v
+        lr_m = reg[(lr_name_dict[codetp],'particle_mass')].to('Msun').v
 
         mset = np.sort(np.array(list(set(lr_m))))
         
@@ -540,12 +540,12 @@ def find_maximized_region(pos,segdist):
     box_max = box_list[np.argmax(box_vol_list)]
     return box_max    
 
-def extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_index, code_name, ds):
+def extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_index, codetp, ds):
 
     surrounded_box = [np.array(init_refined_region[0]) - segdist, np.array(init_refined_region[1]) + segdist]
     reg = ds.box(surrounded_box[0], surrounded_box[1])
 
-    if code_name == 'ENZO':
+    if codetp == 'ENZO':
         def darkmatter(pfilter, data):
             filter_darkmatter = np.logical_and(data["all", "particle_type"] == 1, data["all", "particle_type"] == 4)
             return filter_darkmatter
@@ -553,19 +553,19 @@ def extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_
         ds.add_particle_filter("DarkMatter")
 
     #combine less-refined particles and refined-particles into one field for GEAR, GIZMO, AREPO, and GADGET3
-    if code_name == 'GEAR':
+    if codetp == 'GEAR':
         dm = ParticleUnion("DarkMatter",["PartType5","PartType2"])
         ds.add_particle_union(dm)
-    if code_name == 'GADGET3':
+    if codetp == 'GADGET3':
         dm = ParticleUnion("DarkMatter",["PartType5","PartType1"])
         ds.add_particle_union(dm)
-    if code_name == 'AREPO' or code_name == 'GIZMO':
+    if codetp == 'AREPO' or codetp == 'GIZMO':
         dm = ParticleUnion("DarkMatter",["PartType2","PartType1"])
         ds.add_particle_union(dm)
 
     dm_name_dict = {'ENZO':'DarkMatter','GEAR': 'DarkMatter', 'GADGET3': 'DarkMatter', 'AREPO': 'DarkMatter', 'GIZMO': 'DarkMatter', 'RAMSES': 'DM', 'ART': 'darkmatter', 'CHANGA': 'DarkMatter'}
-    dm_m = reg[(dm_name_dict[code_name],'particle_mass')].to('Msun').v
-    dm_pos = reg[(dm_name_dict[code_name],'particle_position')].to('code_length').v
+    dm_m = reg[(dm_name_dict[codetp],'particle_mass')].to('Msun').v
+    dm_pos = reg[(dm_name_dict[codetp],'particle_position')].to('code_length').v
 
     lr_pos = dm_pos[dm_m > all_m_list[lim_index]]
 
@@ -621,71 +621,69 @@ def extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_
 
     return [box[0],box[1]]
 
-#-----------------------------------------------------------------------------------------
-#Main code
-#code_name = sys.argv[1]
-#directory = sys.argv[2]
-start_time = time.time()
-code_name = 'GADGET3'
-directory = '/home/thinhnguyen/Work/Research_with_Kirk/sandbox/'
-lim_index = 1 #refined region up to the second highest level (0 for first, 1 for second, 2 for third, etc.)
+def find_refined_region(ds, codetp, directory,lim_index = 1):
+    seg_pos_list, mset_list, segdist = reduce_range(codetp, directory, ds, ds.domain_left_edge.v, ds.domain_right_edge.v)
 
-ds = yt.load(directory + 'snapshot_304/snapshot_304.0.hdf5')
-seg_pos_list, mset_list, segdist = reduce_range(code_name, directory, ds, ds.domain_left_edge.v, ds.domain_right_edge.v)
+    #pre_output = {}
+    #pre_output[0] = seg_pos_list
+    #pre_output[1] = mset_list
+    #pre_output[2] = segdist
+    #if yt.is_root():
+    #    np.save(directory + 'pre_output_304.npy', pre_output)
 
-pre_output = {}
-pre_output[0] = seg_pos_list
-pre_output[1] = mset_list
-pre_output[2] = segdist
-if yt.is_root():
-    np.save(directory + 'pre_output_304.npy', pre_output)
-
-all_m_list = np.sort(list(set(np.concatenate(mset_list)))) #list of all dark matter mass levels 
-refined_bool = np.empty(seg_pos_list.shape[0],dtype=bool)
-for i in range(len(mset_list)):
-    if len(mset_list[i]) > 0 and max(mset_list[i]) <= all_m_list[lim_index]:
-        refined_bool[i] = True
-    else:
-        refined_bool[i] = False
-
-while sum(refined_bool) == 0: #if there is no refined region found, reduce the range until we find one
-    reduced_bool = np.empty(seg_pos_list.shape[0],dtype=bool)
-    for i in range(len(mset_list)):
-        if all_m_list[lim_index] in mset_list[i]:
-            reduced_bool[i] = True
-        else:
-            reduced_bool[i] = False
-    reduced_pos = seg_pos_list[reduced_bool]
-    reduced_pos = np.round(reduced_pos,decimals=10)
-    reduced_region = find_maximized_region(reduced_pos,segdist)
-    seg_pos_list, mset_list, segdist = reduce_range(code_name, directory, ds, reduced_region[0], reduced_region[1], subdivide=True, previous_segdist=segdist)
+    all_m_list = np.sort(list(set(np.concatenate(mset_list)))) #list of all dark matter mass levels 
     refined_bool = np.empty(seg_pos_list.shape[0],dtype=bool)
     for i in range(len(mset_list)):
         if len(mset_list[i]) > 0 and max(mset_list[i]) <= all_m_list[lim_index]:
             refined_bool[i] = True
         else:
             refined_bool[i] = False
-    #refined_bool = np.logical_and(mlim_list == np.sort(list(set(mlim_list)))[lim_index], mtype_list <= lim_index + 1)
 
-if yt.is_root():
-    refined_pos = seg_pos_list[refined_bool]
-    refined_pos = np.round(refined_pos,decimals=10) #just to make sure there is no floating point error
+    while sum(refined_bool) == 0: #if there is no refined region found, reduce the range until we find one
+        reduced_bool = np.empty(seg_pos_list.shape[0],dtype=bool)
+        for i in range(len(mset_list)):
+            if all_m_list[lim_index] in mset_list[i]:
+                reduced_bool[i] = True
+            else:
+                reduced_bool[i] = False
+        reduced_pos = seg_pos_list[reduced_bool]
+        reduced_pos = np.round(reduced_pos,decimals=10)
+        reduced_region = find_maximized_region(reduced_pos,segdist)
+        seg_pos_list, mset_list, segdist = reduce_range(codetp, directory, ds, reduced_region[0], reduced_region[1], subdivide=True, previous_segdist=segdist)
+        refined_bool = np.empty(seg_pos_list.shape[0],dtype=bool)
+        for i in range(len(mset_list)):
+            if len(mset_list[i]) > 0 and max(mset_list[i]) <= all_m_list[lim_index]:
+                refined_bool[i] = True
+            else:
+                refined_bool[i] = False
+        #refined_bool = np.logical_and(mlim_list == np.sort(list(set(mlim_list)))[lim_index], mtype_list <= lim_index + 1)
 
-    pre_output_2 = {}
-    pre_output_2[0] = seg_pos_list
-    pre_output_2[1] = mset_list
-    pre_output_2[2] = segdist
-    pre_output_2[3] = refined_pos
+    if yt.is_root():
+        refined_pos = seg_pos_list[refined_bool]
+        refined_pos = np.round(refined_pos,decimals=10) #just to make sure there is no floating point error
 
-    np.save(directory + 'pre_output_2_304.npy', pre_output_2)
+        #pre_output_2 = {}
+        #pre_output_2[0] = seg_pos_list
+        #pre_output_2[1] = mset_list
+        #pre_output_2[2] = segdist
+        #pre_output_2[3] = refined_pos
+        #np.save(directory + 'pre_output_2_304.npy', pre_output_2)
 
-    init_refined_region = find_maximized_region(refined_pos,segdist)
+        init_refined_region = find_maximized_region(refined_pos,segdist)
+        #np.save(directory + 'init_refined_region_304.npy', init_refined_region)
 
-    np.save(directory + 'init_refined_region_304.npy', init_refined_region)
+        refined_region = extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_index, codetp, ds)
 
-    #refined_region = extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_index, code_name, ds)
-    refined_region = extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_index, code_name, ds)
+        np.save(directory + 'refined_region_304.npy', refined_region) #save the refined region
 
-    np.save(directory + 'refined_region_304.npy', refined_region) #save the refined region
+#-----------------------------------------------------------------------------------------
+#Main code
+start_time = time.time()
+codetp = 'GADGET3'
+directory = '/home/thinhnguyen/Work/Research_with_Kirk/sandbox/'
+lim_index = 1 #refined region up to the second highest level (0 for first, 1 for second, 2 for third, etc.)
+snapshot_name = 'snapshot_304/snapshot_304.0.hdf5'
+ds = yt.load(directory + snapshot_name)
 
-    print(time.time()-start_time)
+find_refined_region(ds, codetp, directory, lim_index)
+print(time.time()-start_time)
