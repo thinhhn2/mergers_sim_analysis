@@ -62,7 +62,7 @@ def reduce_range(codetp, directory, ds, ll_all, ur_all, numsegs = 9, subdivide =
         #filter out dark matter particles for ENZO
         if codetp == 'ENZO':
             def darkmatter(pfilter, data):
-                filter_darkmatter = np.logical_and(data["all", "particle_type"] == 1, data["all", "particle_type"] == 4)
+                filter_darkmatter = np.logical_or(data["all", "particle_type"] == 1, data["all", "particle_type"] == 4)
                 return filter_darkmatter
             add_particle_filter("DarkMatter",function=darkmatter,filtered_type='all',requires=["particle_type"])
             ds.add_particle_filter("DarkMatter")
@@ -547,7 +547,7 @@ def extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_
 
     if codetp == 'ENZO':
         def darkmatter(pfilter, data):
-            filter_darkmatter = np.logical_and(data["all", "particle_type"] == 1, data["all", "particle_type"] == 4)
+            filter_darkmatter = np.logical_or(data["all", "particle_type"] == 1, data["all", "particle_type"] == 4)
             return filter_darkmatter
         add_particle_filter("DarkMatter",function=darkmatter,filtered_type='all',requires=["particle_type"])
         ds.add_particle_filter("DarkMatter")
@@ -629,9 +629,9 @@ def find_refined_region(ds, codetp, directory,lim_index = 1):
     #pre_output[1] = mset_list
     #pre_output[2] = segdist
     #if yt.is_root():
-    #    np.save(directory + 'pre_output_304.npy', pre_output)
+    #    np.save(directory + 'pre_output.npy', pre_output)
 
-    all_m_list = np.sort(list(set(np.concatenate(mset_list)))) #list of all dark matter mass levels 
+    all_m_list = np.sort(list(set(np.round(np.concatenate(mset_list)+1)))) #list of all dark matter mass levels 
     refined_bool = np.empty(seg_pos_list.shape[0],dtype=bool)
     for i in range(len(mset_list)):
         if len(mset_list[i]) > 0 and max(mset_list[i]) <= all_m_list[lim_index]:
@@ -639,10 +639,12 @@ def find_refined_region(ds, codetp, directory,lim_index = 1):
         else:
             refined_bool[i] = False
 
+    counter = 0
     while sum(refined_bool) == 0: #if there is no refined region found, reduce the range until we find one
         reduced_bool = np.empty(seg_pos_list.shape[0],dtype=bool)
         for i in range(len(mset_list)):
-            if all_m_list[lim_index] in mset_list[i]:
+            #if all_m_list[lim_index] in mset_list[i]:
+            if len(mset_list[i]) > 0 and np.min(mset_list[i]) <= all_m_list[lim_index]:
                 reduced_bool[i] = True
             else:
                 reduced_bool[i] = False
@@ -650,12 +652,20 @@ def find_refined_region(ds, codetp, directory,lim_index = 1):
         reduced_pos = np.round(reduced_pos,decimals=10)
         reduced_region = find_maximized_region(reduced_pos,segdist)
         seg_pos_list, mset_list, segdist = reduce_range(codetp, directory, ds, reduced_region[0], reduced_region[1], subdivide=True, previous_segdist=segdist)
+        #reduced_output = {}
+        #reduced_output[0] = seg_pos_list
+        #reduced_output[1] = mset_list
+        #reduced_output[2] = segdist
+        #if yt.is_root():
+        #    np.save(directory + 'reduced_output_%s' % counter, reduced_output)
+
         refined_bool = np.empty(seg_pos_list.shape[0],dtype=bool)
         for i in range(len(mset_list)):
             if len(mset_list[i]) > 0 and max(mset_list[i]) <= all_m_list[lim_index]:
                 refined_bool[i] = True
             else:
                 refined_bool[i] = False
+        #counter += 1
         #refined_bool = np.logical_and(mlim_list == np.sort(list(set(mlim_list)))[lim_index], mtype_list <= lim_index + 1)
 
     if yt.is_root():
@@ -667,14 +677,15 @@ def find_refined_region(ds, codetp, directory,lim_index = 1):
         #pre_output_2[1] = mset_list
         #pre_output_2[2] = segdist
         #pre_output_2[3] = refined_pos
-        #np.save(directory + 'pre_output_2_304.npy', pre_output_2)
+        #np.save(directory + 'pre_output_2.npy', pre_output_2)
 
         init_refined_region = find_maximized_region(refined_pos,segdist)
-        #np.save(directory + 'init_refined_region_304.npy', init_refined_region)
+        #np.save(directory + 'init_refined_region.npy', init_refined_region)
 
         refined_region = extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_index, codetp, ds)
 
-        np.save(directory + 'refined_region_304.npy', refined_region) #save the refined region
+        np.save(directory + 'refined_region.npy', refined_region) #save the refined region
+        return refined_region
 
 #-----------------------------------------------------------------------------------------
 #Main code
@@ -682,8 +693,8 @@ start_time = time.time()
 codetp = 'GADGET3'
 directory = '/home/thinhnguyen/Work/Research_with_Kirk/sandbox/'
 lim_index = 1 #refined region up to the second highest level (0 for first, 1 for second, 2 for third, etc.)
-snapshot_name = 'snapshot_304/snapshot_304.0.hdf5'
+snapshot_name = 'snapshot_200/snapshot_200.0.hdf5'
 ds = yt.load(directory + snapshot_name)
 
-find_refined_region(ds, codetp, directory, lim_index)
+refined_region = find_refined_region(ds, codetp, directory, lim_index)
 print(time.time()-start_time)
