@@ -420,6 +420,7 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
         s_coor_each = reg[("Stars", "particle_position")].in_units("kpc").v.tolist()
         s_vel_each = reg[("Stars", "particle_velocity")].in_units("km/s").v.tolist()
         s_formation_time_each = reg[('Stars', 'FormationTime')].in_units("Gyr").v.tolist()
+        s_ID_each = reg[("Stars", "iord")].v.tolist()
 
         #Calculating gas' metadata
         #Calculating gas' metadata
