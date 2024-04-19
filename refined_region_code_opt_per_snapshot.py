@@ -37,8 +37,9 @@ def reduce_range(codetp, directory, ds, ll_all, ur_all, numsegs = 3, subdivide =
     
     elif subdivide == True:
         segdist = previous_segdist/(numsegs - 1)
-        xx,yy,zz = np.meshgrid(np.arange(ll_all[0],ur_all[0] + segdist,segdist),\
-                    np.arange(ll_all[1],ur_all[1] + segdist,segdist),np.arange(ll_all[2],ur_all[2] + segdist,segdist))
+        xx,yy,zz = np.meshgrid(np.round(np.arange(ll_all[0],ur_all[0] + segdist,segdist),decimals=10),\
+                    np.round(np.arange(ll_all[1],ur_all[1] + segdist,segdist),decimals=10), \
+                    np.round(np.arange(ll_all[2],ur_all[2] + segdist,segdist),decimals=10))
 
         
     ll = np.concatenate((xx[:-1,:-1,:-1,np.newaxis],yy[:-1,:-1,:-1,np.newaxis],zz[:-1,:-1,:-1,np.newaxis]),axis=3) #ll is lowerleft
@@ -173,9 +174,9 @@ def reduce_range_subdivide(codetp, directory, ds, ll_all, ur_all, all_m_list, li
 
 
 def volume_cal(ll,ur):
-    return np.prod(np.array(ur) - np.array(ll))    
+    return np.prod(np.array(ur) - np.array(ll)) 
 
-def find_lines(ll_pos,segdist,direction):
+def find_lines(ll_pos_index,range_ll_pos_index,direction):
     """
     THIS FUNCTION FINDS THE 1D LINE THAT ARE MADE FROM ALL THE SUB-BOXES
 
@@ -193,30 +194,25 @@ def find_lines(ll_pos,segdist,direction):
     THE COORDINATE OF THE SUB-BOXES AND THE NUMBER OF SUB-BOXES ON EACH LINE.
 
     """
-    max_ll_pos = np.max(ll_pos)
-    min_ll_pos = np.min(ll_pos)
-    range_ll_pos = np.arange(min_ll_pos,max_ll_pos + segdist,segdist)
-    base = list(product(range_ll_pos, repeat =2))
+    base = list(product(range_ll_pos_index,repeat =2))
+    
     line_list = {}
     len_line_list = []
     for i in range(len(base)):
         if direction == 'z':
-            #group = ll_pos[(ll_pos[:,0:2] == base[i]).all(axis=1)]
-            group = ll_pos[np.isclose(ll_pos[:,0:2],base[i],rtol=1e-8,atol=1e-11).all(axis=1)]
+            group = ll_pos_index[(ll_pos_index[:,0:2] == base[i]).all(axis=1)]
         elif direction == 'x':
-            #group = ll_pos[(ll_pos[:,1:] == base[i]).all(axis=1)]
-            group = ll_pos[np.isclose(ll_pos[:,1:],base[i],rtol=1e-8,atol=1e-11).all(axis=1)]
+            group = ll_pos_index[(ll_pos_index[:,1:] == base[i]).all(axis=1)]
         elif direction == 'y':
-            #group = ll_pos[(ll_pos[:,(0,2)] == base[i]).all(axis=1)]
-            group = ll_pos[np.isclose(ll_pos[:,(0,2)],base[i],rtol=1e-8,atol=1e-11).all(axis=1)]
+            group = ll_pos_index[(ll_pos_index[:,(0,2)] == base[i]).all(axis=1)]
         if len(group) > 1:
-            group_diff = np.round(np.diff(group,axis=0),decimals=10)
+            group_diff = np.diff(group,axis=0)
             if direction == 'z':
-                group_bool = (group_diff == np.array([0,0,segdist])).all(axis=1)
+                group_bool = (group_diff == np.array([0,0,1])).all(axis=1)
             elif direction == 'x':
-                group_bool = (group_diff == np.array([segdist,0,0])).all(axis=1)
+                group_bool = (group_diff == np.array([1,0,0])).all(axis=1)
             elif direction == 'y':
-                group_bool = (group_diff == np.array([0,segdist,0])).all(axis=1)
+                group_bool = (group_diff == np.array([0,1,0])).all(axis=1)
             group_bool = np.append(True,group_bool)
             group_divider = np.where(~group_bool)[0]
             start_idx = 0
@@ -226,14 +222,7 @@ def find_lines(ll_pos,segdist,direction):
                 start_idx = divider
             group_sep.append(group[start_idx:len(group)])
             line_list[base[i]] = group_sep
-            #if len(group_sep) > 1:
-            #    for j in range(len(group_sep)):
-            #        line_list[base[i]] = group_sep[j][0]
-            #else:
-            #    line_list[base[i]] = group_sep[0]
-            #line_list += group_sep
         else:
-            #line_list += [group]
             line_list[base[i]] = [group]
     for i in range(len(line_list.values())):
         if len(list(line_list.values())[i]) <= 1:
@@ -244,8 +233,8 @@ def find_lines(ll_pos,segdist,direction):
                 len_line_sub.append(list(line_list.values())[i][n].shape[0])
             len_line_list.append(len_line_sub)
     return line_list, len_line_list
-    
-def find_slab(start_line, line_list, segdist, direction = 'x'):
+
+def find_slab(start_line, line_list, direction = 'x'):
     """
     Parameters
     ----------
@@ -265,7 +254,7 @@ def find_slab(start_line, line_list, segdist, direction = 'x'):
     """
     #Format of a slab, a list containing the lower-left coordinate and the upper-right coordinate
     #Initially, the slab is a line. Then we expand it.
-    slab = [list(start_line[0]),list(start_line[-1]+segdist)]
+    slab = [start_line[0],start_line[-1]+1]
     
     if direction == 'x':
         line_x_list = line_list
@@ -281,30 +270,27 @@ def find_slab(start_line, line_list, segdist, direction = 'x'):
     #START THE LOOP
     while stop_all == 0:
         slab_volume = volume_cal(slab[0],slab[1])
-        #start_line_base = list(line_x_list.keys())[np.argmax(len_line_x_list)]
-        #start_line_base = (slab[0][0],slab[0][1])
         
         #-------------------------------------------------------------------------------------------------------------
         #SCENARIO 1: START WITH 1D ON X, EXPAND TO 2D ON X AND Y
         if direction == 'x':
-            top_line_base = (slab[1][1], slab[1][2] - segdist) #use the upper-right block to calculate (increase y value - first element in the tuple)
+            top_line_base = (slab[1][1], slab[1][2] - 1) #use the upper-right block to calculate (increase y value - first element in the tuple)
                 
-            #bottom_line_base = (start_line_base[0]-segdist,start_line_base[1])
             if top_line_base in list(line_x_list.keys()) and line_x_list[top_line_base][0].shape[0] > 0:   
                 top_line = line_x_list[top_line_base][0]
                 slab_top_ll_x = max(slab[0][0],np.min(top_line[:,0]))
-                slab_top_ur_x = min(slab[1][0] - segdist,np.max(top_line[:,0])) + segdist
-                slab_top = [[slab_top_ll_x,slab[0][1],slab[0][2]],[slab_top_ur_x,top_line_base[0]+segdist,top_line_base[1]+segdist]]
+                slab_top_ur_x = min(slab[1][0] - 1,np.max(top_line[:,0])) + 1
+                slab_top = [[slab_top_ll_x,slab[0][1],slab[0][2]],[slab_top_ur_x,top_line_base[0]+1,top_line_base[1]+1]]
                 slab_top_volume = volume_cal(slab_top[0],slab_top[1])
             else:
                 stop_top = 1 #if the expansion reaches the top limit, stop the expasion in this direction
                 slab_top_volume = slab_volume
             
-            bottom_line_base = (slab[0][1] - segdist, slab[0][2]) #use the lower-left block to calculate (decrease y value - first element in the tuple)
+            bottom_line_base = (slab[0][1] - 1, slab[0][2]) #use the lower-left block to calculate (decrease y value - first element in the tuple)
             if bottom_line_base in list(line_x_list.keys()) and line_x_list[bottom_line_base][0].shape[0] > 0: 
                 bottom_line = line_x_list[bottom_line_base][0]
                 slab_bottom_ll_x = max(slab[0][0],np.min(bottom_line[:,0]))
-                slab_bottom_ur_x = min(slab[1][0] - segdist,np.max(bottom_line[:,0])) + segdist
+                slab_bottom_ur_x = min(slab[1][0] - 1,np.max(bottom_line[:,0])) + 1
                 slab_bottom = [[slab_bottom_ll_x,bottom_line_base[0],bottom_line_base[1]],[slab_bottom_ur_x,slab[1][1],slab[1][2]]]
                 slab_bottom_volume = volume_cal(slab_bottom[0],slab_bottom[1])
             else:
@@ -314,23 +300,23 @@ def find_slab(start_line, line_list, segdist, direction = 'x'):
         #-------------------------------------------------------------------------------------------------------------
         #SCENARIO 2: START WITH 1D ON Y, EXPAND TO 2D ON Y AND Z
         if direction == 'y':
-            top_line_base = (slab[1][0] - segdist, slab[1][2]) #use the upper-right block to calculate  (increase z value - second element in the tuple)
+            top_line_base = (slab[1][0] - 1, slab[1][2]) #use the upper-right block to calculate  (increase z value - second element in the tuple)
                 
             if top_line_base in list(line_y_list.keys()) and line_y_list[top_line_base][0].shape[0] > 0:   
                 top_line = line_y_list[top_line_base][0]
                 slab_top_ll_y = max(slab[0][1],np.min(top_line[:,1]))
-                slab_top_ur_y = min(slab[1][1] - segdist,np.max(top_line[:,1])) + segdist
-                slab_top = [[slab[0][0],slab_top_ll_y,slab[0][2]],[top_line_base[0]+segdist,slab_top_ur_y,top_line_base[1]+segdist]]
+                slab_top_ur_y = min(slab[1][1] - 1,np.max(top_line[:,1])) + 1
+                slab_top = [[slab[0][0],slab_top_ll_y,slab[0][2]],[top_line_base[0]+1,slab_top_ur_y,top_line_base[1]+1]]
                 slab_top_volume = volume_cal(slab_top[0],slab_top[1])
             else:
                 stop_top = 1 #if the expansion reaches the top limit, stop the expasion in this direction
                 slab_top_volume = slab_volume
             
-            bottom_line_base = (slab[0][0], slab[0][2] - segdist)  #use the bottom-left block to calculate  (decrease z value - second element in the tuple)
+            bottom_line_base = (slab[0][0], slab[0][2] - 1)  #use the bottom-left block to calculate  (decrease z value - second element in the tuple)
             if bottom_line_base in list(line_y_list.keys()) and line_y_list[bottom_line_base][0].shape[0] > 0: 
                 bottom_line = line_y_list[bottom_line_base][0]
                 slab_bottom_ll_y = max(slab[0][1],np.min(bottom_line[:,1]))
-                slab_bottom_ur_y = min(slab[1][1] - segdist,np.max(bottom_line[:,1])) + segdist
+                slab_bottom_ur_y = min(slab[1][1] - 1,np.max(bottom_line[:,1])) + 1
                 slab_bottom = [[bottom_line_base[0],slab_bottom_ll_y,bottom_line_base[1]],[slab[1][0],slab_bottom_ur_y,slab[1][2]]]
                 slab_bottom_volume = volume_cal(slab_bottom[0],slab_bottom[1])
             else:
@@ -339,23 +325,23 @@ def find_slab(start_line, line_list, segdist, direction = 'x'):
         #-------------------------------------------------------------------------------------------------------------
         #SCENARIO 3: START WITH 1D ON Z, EXPAND TO 2D ON Z AND X
         if direction == 'z':
-            top_line_base = (slab[1][0], slab[1][1] - segdist) #use the upper-right block to calculate  (increase x value - first element in the tuple; keep y value)
+            top_line_base = (slab[1][0], slab[1][1] - 1) #use the upper-right block to calculate  (increase x value - first element in the tuple; keep y value)
                 
             if top_line_base in list(line_z_list.keys()) and line_z_list[top_line_base][0].shape[0] > 0:   
                 top_line = line_z_list[top_line_base][0]
                 slab_top_ll_z = max(slab[0][2],np.min(top_line[:,2]))
-                slab_top_ur_z = min(slab[1][2] - segdist,np.max(top_line[:,2])) + segdist
-                slab_top = [[slab[0][0],slab[0][1],slab_top_ll_z],[top_line_base[0]+segdist,top_line_base[1]+segdist,slab_top_ur_z]]
+                slab_top_ur_z = min(slab[1][2] - 1,np.max(top_line[:,2])) + 1
+                slab_top = [[slab[0][0],slab[0][1],slab_top_ll_z],[top_line_base[0]+1,top_line_base[1]+1,slab_top_ur_z]]
                 slab_top_volume = volume_cal(slab_top[0],slab_top[1])
             else:
                 stop_top = 1 #if the expansion reaches the top limit, stop the expasion in this direction
                 slab_top_volume = slab_volume
             
-            bottom_line_base = (slab[0][0] - segdist, slab[0][1])  #use the bottom-left block to calculate  (decrease x value - first element in the tuple; keep y value)
+            bottom_line_base = (slab[0][0] - 1, slab[0][1])  #use the bottom-left block to calculate  (decrease x value - first element in the tuple; keep y value)
             if bottom_line_base in list(line_z_list.keys()) and line_z_list[bottom_line_base][0].shape[0] > 0: 
                 bottom_line = line_z_list[bottom_line_base][0]
                 slab_bottom_ll_z = max(slab[0][2],np.min(bottom_line[:,2]))
-                slab_bottom_ur_z = min(slab[1][2] - segdist,np.max(bottom_line[:,2])) + segdist
+                slab_bottom_ur_z = min(slab[1][2] - 1,np.max(bottom_line[:,2])) + 1
                 slab_bottom = [[bottom_line_base[0],bottom_line_base[1],slab_bottom_ll_z],[slab[1][0],slab[1][1],slab_bottom_ur_z]]
                 slab_bottom_volume = volume_cal(slab_bottom[0],slab_bottom[1])
             else:
@@ -375,7 +361,7 @@ def find_slab(start_line, line_list, segdist, direction = 'x'):
       
     return slab, volume_cal(slab[0], slab[1])
 
-def find_box(start_slab, start_slab_thirdaxis, slab_list, segdist, direction = 'x'):
+def find_box(start_slab, slab_list, direction = 'x'):
     """
 
     Parameters
@@ -408,9 +394,9 @@ def find_box(start_slab, start_slab_thirdaxis, slab_list, segdist, direction = '
         box_volume = volume_cal(box[0],box[1])
         
         #-------------------------------------------------------------------------------------------------------------
-        #SCENARIO 1: START WITH 1D ON X, EXPAND TO 2D ON X AND Y 
+        #SCENARIO 1: START WITH 2D ON X AND Y, EXPAND TO 3D 
         if direction == 'x':
-            top_slab_z = start_slab_thirdaxis+segdist
+            top_slab_z = box[1][2]
             if top_slab_z in list(slab_list.keys()):
                 top_slab = slab_list[top_slab_z]
                 #stack the top slab to the current slab to create a box
@@ -418,13 +404,13 @@ def find_box(start_slab, start_slab_thirdaxis, slab_list, segdist, direction = '
                 box_top_ur_x = min(box[1][0],top_slab[1][0])
                 box_top_ll_y = max(box[0][1],top_slab[0][1])
                 box_top_ur_y = min(box[1][1],top_slab[1][1])
-                box_top = [[box_top_ll_x,box_top_ll_y,start_slab_thirdaxis],[box_top_ur_x,box_top_ur_y,top_slab_z+segdist]]
+                box_top = [[box_top_ll_x,box_top_ll_y,box[0][2]],[box_top_ur_x,box_top_ur_y,top_slab_z+1]]
                 box_top_volume = volume_cal(box_top[0],box_top[1])
             else:
                 stop_top = 1
                 box_top_volume = box_volume
             
-            bottom_slab_z = start_slab_thirdaxis-segdist
+            bottom_slab_z = box[0][2] - 1
             if bottom_slab_z in list(slab_list.keys()):
                 bottom_slab = slab_list[bottom_slab_z]
                 #stack the bottom slab to the current slab to create a box
@@ -432,16 +418,16 @@ def find_box(start_slab, start_slab_thirdaxis, slab_list, segdist, direction = '
                 box_bottom_ur_x = min(box[1][0],bottom_slab[1][0])
                 box_bottom_ll_y = max(box[0][1],bottom_slab[0][1])
                 box_bottom_ur_y = min(box[1][1],bottom_slab[1][1])
-                box_bottom = [[box_bottom_ll_x,box_bottom_ll_y,bottom_slab_z],[box_bottom_ur_x,box_bottom_ur_y,start_slab_thirdaxis+segdist]]
+                box_bottom = [[box_bottom_ll_x,box_bottom_ll_y,bottom_slab_z],[box_bottom_ur_x,box_bottom_ur_y,box[1][2]]]
                 box_bottom_volume = volume_cal(box_bottom[0],box_bottom[1])
             else:
                 stop_bottom = 1
                 box_bottom_volume = box_volume
 
         #-------------------------------------------------------------------------------------------------------------
-        #SCENARIO 2: START WITH 1D ON Y, EXPAND TO 2D ON Y AND Z                
+        #SCENARIO 2: START WITH 2D ON Y AND Z, EXPAND TO 3D                
         if direction == 'y':
-            top_slab_x = start_slab_thirdaxis+segdist
+            top_slab_x = box[1][0]
             if top_slab_x in list(slab_list.keys()):
                 top_slab = slab_list[top_slab_x]
                 #stack the top slab to the current slab to create a box
@@ -449,13 +435,13 @@ def find_box(start_slab, start_slab_thirdaxis, slab_list, segdist, direction = '
                 box_top_ur_y = min(box[1][1],top_slab[1][1])
                 box_top_ll_z = max(box[0][2],top_slab[0][2])
                 box_top_ur_z = min(box[1][2],top_slab[1][2])
-                box_top = [[start_slab_thirdaxis,box_top_ll_y,box_top_ll_z],[top_slab_x+segdist,box_top_ur_y,box_top_ur_z]]
+                box_top = [[box[0][0],box_top_ll_y,box_top_ll_z],[top_slab_x+1,box_top_ur_y,box_top_ur_z]]
                 box_top_volume = volume_cal(box_top[0],box_top[1])
             else:
                 stop_top = 1
                 box_top_volume = box_volume
             
-            bottom_slab_x = start_slab_thirdaxis-segdist
+            bottom_slab_x = box[0][0] - 1
             if bottom_slab_x in list(slab_list.keys()):
                 bottom_slab = slab_list[bottom_slab_x]
                 #stack the bottom slab to the current slab to create a box
@@ -463,16 +449,16 @@ def find_box(start_slab, start_slab_thirdaxis, slab_list, segdist, direction = '
                 box_bottom_ur_y = min(box[1][1],bottom_slab[1][1])
                 box_bottom_ll_z = max(box[0][2],bottom_slab[0][2])
                 box_bottom_ur_z = min(box[1][2],bottom_slab[1][2])
-                box_bottom = [[bottom_slab_x,box_bottom_ll_y,box_bottom_ll_z],[start_slab_thirdaxis+segdist,box_bottom_ur_y,box_bottom_ur_z]]
+                box_bottom = [[bottom_slab_x,box_bottom_ll_y,box_bottom_ll_z],[box[1][0],box_bottom_ur_y,box_bottom_ur_z]]
                 box_bottom_volume = volume_cal(box_bottom[0],box_bottom[1])
             else:
                 stop_bottom = 1
                 box_bottom_volume = box_volume
 
         #-------------------------------------------------------------------------------------------------------------
-        #SCENARIO 3: START WITH 1D ON Z, EXPAND TO 2D ON Z AND X                
+        #SCENARIO 3: START WITH 2D ON Z AND X, EXPAND TO 3D               
         if direction == 'z':
-            top_slab_y = start_slab_thirdaxis+segdist
+            top_slab_y = box[1][1]
             if top_slab_y in list(slab_list.keys()):
                 top_slab = slab_list[top_slab_y]
                 #stack the top slab to the current slab to create a box
@@ -480,13 +466,13 @@ def find_box(start_slab, start_slab_thirdaxis, slab_list, segdist, direction = '
                 box_top_ur_z = min(box[1][2],top_slab[1][2])
                 box_top_ll_x = max(box[0][0],top_slab[0][0])
                 box_top_ur_x = min(box[1][0],top_slab[1][0])
-                box_top = [[box_top_ll_x,start_slab_thirdaxis,box_top_ll_z],[box_top_ur_x,top_slab_y+segdist,box_top_ur_z]]
+                box_top = [[box_top_ll_x,box[0][1],box_top_ll_z],[box_top_ur_x,top_slab_y+1,box_top_ur_z]]
                 box_top_volume = volume_cal(box_top[0],box_top[1])
             else:
                 stop_top = 1 #the expansion hits the upper limit
                 box_top_volume = box_volume
             
-            bottom_slab_y = start_slab_thirdaxis-segdist
+            bottom_slab_y = box[0][1] - 1
             if bottom_slab_y in list(slab_list.keys()):
                 bottom_slab = slab_list[bottom_slab_y]
                 #stack the bottom slab to the current slab to create a box
@@ -494,14 +480,13 @@ def find_box(start_slab, start_slab_thirdaxis, slab_list, segdist, direction = '
                 box_bottom_ur_z = min(box[1][2],bottom_slab[1][2])
                 box_bottom_ll_x = max(box[0][0],bottom_slab[0][0])
                 box_bottom_ur_x = min(box[1][0],bottom_slab[1][0])
-                box_bottom = [[box_bottom_ll_x,bottom_slab_y,box_bottom_ll_z],[box_bottom_ur_x,start_slab_thirdaxis+segdist,box_bottom_ur_z]]
+                box_bottom = [[box_bottom_ll_x,bottom_slab_y,box_bottom_ll_z],[box_bottom_ur_x,box[1][1],box_bottom_ur_z]]
                 box_bottom_volume = volume_cal(box_bottom[0],box_bottom[1])
             else:
                 stop_bottom = 1 #the expansion hits lower upper limit
                 box_bottom_volume = box_volume
 
         #-------------------------------------------------------------------------------------------------------------
-        
         if stop_top == 1 and stop_bottom == 1: #if in the beginning, there is no parallel slab for the slab to expand to 3D -> stop the loop
             stop_all = 1
         
@@ -511,66 +496,52 @@ def find_box(start_slab, start_slab_thirdaxis, slab_list, segdist, direction = '
             box = box_bottom
         else:
             stop_all = 1
-        """
-        if stop_top != 1: 
-            if box_top_volume >= box_bottom_volume and box_top_volume > box_volume:
-                box_new = box_top
-        if stop_bottom != 1:
-            if box_bottom_volume >= box_top_volume and box_bottom_volume > box_volume:
-                box_new = box_bottom
-        if stop_top == 1 and stop_bottom == 1: #if in the beginning, there is no parallel slab for the slab to expand to 3D -> stop the loop
-            stop_all = 1
-        else: #this means the box can still expand on at least 1 directtion
-            if box == box_new: #this mean the box cannot expand to increase the volume -> stop the loop
-                stop_all = 1
-            else:
-                box = box_new #if the box can expand to increase the volume, update the box
-        """
-        return box, volume_cal(box[0], box[1])
-    
-def find_maximized_region(pos,segdist):
+    return box, volume_cal(box[0], box[1])
+
+def find_maximized_region(pos, segdist): 
     ll_pos = pos[:,0,:]
-    
-    line_x_list, len_line_x_list = find_lines(ll_pos, segdist, direction='x')
-    line_y_list, len_line_y_list = find_lines(ll_pos, segdist, direction='y')
-    line_z_list, len_line_z_list = find_lines(ll_pos, segdist, direction='z')
-    
     max_ll_pos = np.max(ll_pos)
     min_ll_pos = np.min(ll_pos)
-    range_ll_pos = np.arange(min_ll_pos,max_ll_pos + segdist,segdist)
+    range_ll_pos = np.round(np.arange(min_ll_pos,max_ll_pos + segdist,segdist),decimals=10)
+    range_pos = np.round(np.arange(np.min(pos),np.max(pos) + segdist,segdist),decimals=10)
+    range_ll_pos_index = range(len(range_ll_pos)) #To avoid floating point error, use integer index instead
+    ll_pos_index = np.searchsorted(range_ll_pos,ll_pos)
+    
+    line_x_list, len_line_x_list = find_lines(ll_pos_index, range_ll_pos_index, direction='x')
+    line_y_list, len_line_y_list = find_lines(ll_pos_index, range_ll_pos_index, direction='y')
+    line_z_list, len_line_z_list = find_lines(ll_pos_index, range_ll_pos_index, direction='z')
     
     #---------------------------------------------------------------------------------------------------------------
     #SCENARIO 1: START WITH 1D ON X, EXPAND TO 2D ON X AND Y, THEN EXPAND TO 3D
     #The goal here is to find the slab on each z-axis first, then we stack those slabs together to find the biggest volume
     start_line_each_slab = {}
-    for z in range_ll_pos: #loop through the z axis
-        temp = line_x_list[(min_ll_pos,z)][0] #temp is a starting start_line so we can compare which line is longest on the x-y plane
-        for y in range_ll_pos: #loop through the y axis
+    for z in range_ll_pos_index: #loop through the z axis
+        temp = line_x_list[(0, z)][0] #temp is a starting start_line so we can compare which line is longest on the x-y plane
+        for y in range_ll_pos_index: #loop through the y axis
             for k in range(len(line_x_list[(y,z)])): #loop throug the number of lines in each x-y plane
                 if line_x_list[(y,z)][k].shape[0] >= temp.shape[0]:
                     temp = line_x_list[(y,z)][k]
         if temp.shape[0] > 0: #avoid region with no line to start with           
             start_line_each_slab[z] = temp #we don't take into account the non-continuous slab here -> it is already taken into account when we evaluate the other two dimensions
     
-    #start_line = list(line_x_list.values())[np.argmax(len_line_x_list)][0]
     slab_list = {}
     slab_vol_list = []
     for z in list(start_line_each_slab.keys()):
         start_line = start_line_each_slab[z]
-        slab_list[z] = find_slab(start_line, line_x_list, segdist, direction = 'x')[0]
-        slab_vol_list.append(find_slab(start_line, line_x_list, segdist, direction = 'x')[1])
+        slab_each_z = find_slab(start_line, line_x_list, direction = 'x')
+        slab_list[z] = slab_each_z[0]
+        slab_vol_list.append(slab_each_z[1])
         
     start_slab = list(slab_list.values())[np.argmax(slab_vol_list)]
-    start_slab_z = list(slab_list.keys())[np.argmax(slab_vol_list)]
     
-    box_x, box_vol_x = find_box(start_slab, start_slab_z, slab_list, segdist, direction = 'x')                
+    box_x, box_vol_x = find_box(start_slab, slab_list, direction = 'x') 
     
     #---------------------------------------------------------------------------------------------------------------
     #SCENARIO 2: START WITH 1D ON Y, EXPAND TO 2D ON Y AND Z, THEN EXPAND TO 3D
     start_line_each_slab = {}
-    for x in range_ll_pos: #loop through the x axis
-        temp = line_y_list[(x,min_ll_pos)][0] #temp is a starting start_line so we can compare which line is longest on the y-z plane
-        for z in range_ll_pos: #loop through the z axis
+    for x in range_ll_pos_index: #loop through the x axis
+        temp = line_y_list[(x,0)][0] #temp is a starting start_line so we can compare which line is longest on the y-z plane
+        for z in range_ll_pos_index: #loop through the z axis
             for k in range(len(line_y_list[(x,z)])): #loop throug the number of lines in each x-y plane
                 if line_y_list[(x,z)][k].shape[0] >= temp.shape[0]:
                     temp = line_y_list[(x,z)][k]
@@ -581,20 +552,20 @@ def find_maximized_region(pos,segdist):
     slab_vol_list = []
     for x in list(start_line_each_slab.keys()):
         start_line = start_line_each_slab[x]
-        slab_list[x] = find_slab(start_line, line_y_list, segdist, direction = 'y')[0]
-        slab_vol_list.append(find_slab(start_line, line_y_list, segdist, direction = 'y')[1])
+        slab_each_x = find_slab(start_line, line_y_list, direction = 'y')
+        slab_list[x] = slab_each_x[0]
+        slab_vol_list.append(slab_each_x[1])
     
     start_slab = list(slab_list.values())[np.argmax(slab_vol_list)]
-    start_slab_x = list(slab_list.keys())[np.argmax(slab_vol_list)]
     
-    box_y, box_vol_y = find_box(start_slab, start_slab_x, slab_list, segdist, direction = 'y')  
+    box_y, box_vol_y = find_box(start_slab, slab_list, direction = 'y')  
     
     #---------------------------------------------------------------------------------------------------------------
     #SCENARIO 3: START WITH 1D ON Z, EXPAND TO 2D ON X AND Z, THEN EXPAND TO 3D
     start_line_each_slab = {}
-    for y in range_ll_pos: #loop through the y axis
-        temp = line_z_list[(min_ll_pos,y)][0] #temp is a starting start_line so we can compare which line is longest on the y-z plane
-        for x in range_ll_pos: #loop through the x axis
+    for y in range_ll_pos_index: #loop through the y axis
+        temp = line_z_list[(0,y)][0] #temp is a starting start_line so we can compare which line is longest on the z-x plane
+        for x in range_ll_pos_index: #loop through the x axis
             for k in range(len(line_z_list[(x,y)])): #loop throug the number of lines in each x-y plane
                 if line_z_list[(x,y)][k].shape[0] >= temp.shape[0]:
                     temp = line_z_list[(x,y)][k]
@@ -605,19 +576,21 @@ def find_maximized_region(pos,segdist):
     slab_vol_list = []
     for y in list(start_line_each_slab.keys()):
         start_line = start_line_each_slab[y]
-        slab_list[y] = find_slab(start_line, line_z_list, segdist, direction = 'z')[0]
-        slab_vol_list.append(find_slab(start_line, line_z_list, segdist, direction = 'z')[1])
+        slab_each_y = find_slab(start_line, line_z_list, direction = 'z')
+        slab_list[y] = slab_each_y[0]
+        slab_vol_list.append(slab_each_y[1])
     
     start_slab = list(slab_list.values())[np.argmax(slab_vol_list)]
-    start_slab_y = list(slab_list.keys())[np.argmax(slab_vol_list)]
     
-    box_z, box_vol_z = find_box(start_slab, start_slab_y, slab_list, segdist, direction = 'z')  
+    box_z, box_vol_z = find_box(start_slab, slab_list, direction = 'z')  
     
     #----------------------------------------------------------------------------------------------------------------
     box_list = [box_x, box_y, box_z]
     box_vol_list = [box_vol_x, box_vol_y, box_vol_z]
-    box_max = box_list[np.argmax(box_vol_list)]
-    return box_max    
+    box_max_index = box_list[np.argmax(box_vol_list)]
+    box_max = range_pos[np.array(box_max_index)]
+    return box_max
+
 
 def extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_index, codetp, ds):
 
@@ -830,23 +803,25 @@ if sum(refined_bool) == 0:
     np.save(directory + 'reduced_region.npy', reduced_region) #save the reduced region
     print('Maximized region (for boxes contains PARTLY refined particles) found:',time.time()-start_time)
     #seg_pos_list, mset_list, segdist = reduce_range(codetp, directory, ds, reduced_region[0], reduced_region[1], subdivide=True, previous_segdist=segdist)
-    deposit_dim = 10
-    refined_pos, segdist = reduce_range_subdivide(codetp, directory, ds, reduced_region[0], reduced_region[1], all_m_list, lim_index = 0, numsegs=3, previous_segdist=segdist, deposit_dim=deposit_dim)
+    deposit_dim = 20
+    refined_pos, segdist = reduce_range_subdivide(codetp, directory, ds, reduced_region[0], reduced_region[1], all_m_list, lim_index = lim_index, numsegs=3, previous_segdist=segdist, deposit_dim=deposit_dim)
     while len(refined_pos) == 0:
         deposit_dim += 5
-        refined_pos, segdist = reduce_range_subdivide(codetp, directory, ds, reduced_region[0], reduced_region[1], all_m_list, lim_index = 0, numsegs=3, previous_segdist=segdist, deposit_dim=deposit_dim)
+        refined_pos, segdist = reduce_range_subdivide(codetp, directory, ds, reduced_region[0], reduced_region[1], all_m_list, lim_index = lim_index, numsegs=3, previous_segdist=segdist, deposit_dim=deposit_dim)
     np.save(directory + 'refined_pos.npy', refined_pos)
+    np.save(directory + 'segdist.npy', segdist)
     print('Range reduction time:',time.time()-start_time)
 else:
     refined_pos = seg_pos_list[refined_bool]
     refined_pos = np.round(refined_pos,decimals=10)
 
-init_refined_region = find_maximized_region(refined_pos,segdist)
-np.save(directory + 'init_refined_region.npy', init_refined_region)
-print('Maximized region (for boxes with ONLY refined particles) found:',time.time()-start_time)
+if yt.is_root():
+    init_refined_region = find_maximized_region(refined_pos,segdist)
+    np.save(directory + 'init_refined_region.npy', init_refined_region)
+    print('Maximized region (for boxes with ONLY refined particles) found:',time.time()-start_time)
 
-refined_region = extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_index, codetp, ds)
-print('Final refined region found:',time.time()-start_time)
+    refined_region = extend_initial_refined_region(init_refined_region, segdist, all_m_list, lim_index, codetp, ds)
+    print('Final refined region found:',time.time()-start_time)
 
-np.save(directory + 'refined_region_deposit.npy', refined_region) #save the refined region
+    np.save(directory + 'refined_region_deposit.npy', refined_region) #save the refined region
 
