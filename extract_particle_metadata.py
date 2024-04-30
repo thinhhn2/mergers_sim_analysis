@@ -245,6 +245,15 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
 
         #Calculating stars' metadata
         s_mass_each = reg[("PartType4", "particle_mass")].in_units("Msun").v.tolist()
+
+        if code_name == 'GADGET3':
+            s_mass_initial_each = reg[('PartType4', 'InitialStellarMass')].v
+        if code_name == 'AREPO':
+            s_mass_initial_each = reg[('PartType4', 'OriginalMass')].v
+
+        s_mass_initial_each = s_mass_initial_each*ds.units.code_mass
+        s_mass_initial_each = s_mass_initial_each.to('Msun')
+
         s_coor_each = reg[("PartType4", "particle_position")].in_units("kpc").v.tolist()
         s_vel_each = reg[("PartType4", "particle_velocity")].in_units("km/s").v.tolist()
         s_formation_time_each = reg[('PartType4', 'StellarFormationTime')]
@@ -311,6 +320,7 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
 
         #Calculating stars' metadata
         s_mass_each = reg[("PartType1", "particle_mass")].in_units("Msun").v.tolist()
+        s_mass_initial_each = reg[("PartType1", "InitialMass")].in_units("Msun").v.tolist()
         s_coor_each = reg[("PartType1", "particle_position")].in_units("kpc").v.tolist()
         s_vel_each = reg[("PartType1", "particle_velocity")].in_units("km/s").v.tolist()
         s_formation_time_each = reg[('PartType1', 'StarFormationTime')]
@@ -342,6 +352,7 @@ for sto, idx in yt.parallel_objects(snapshot_idx, nprocs-1,storage = my_storage)
 
         #Calculating stars' metadata
         s_mass_each = reg[("stars", "particle_mass")].in_units("Msun").v.tolist()
+        s_mass_initial_each = reg[("stars", "particle_mass_initial")].in_units("Msun").v.tolist()
         s_coor_each = reg[("stars", "particle_position")].in_units("kpc").v.tolist()
         s_vel_each = reg[("stars", "particle_velocity")].in_units("km/s").v.tolist()
         s_formation_time_each = reg[('stars', 'particle_creation_time')].in_units("Gyr").v.tolist()
