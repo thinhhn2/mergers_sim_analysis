@@ -79,7 +79,7 @@ halo_second = halo_second_180[0]
 time_counter = 180
 
 #This is for skipping the timestep without making the plots
-for i in range(16):
+for i in range(15):
     halo_primary = halo_primary.descendent
     halo_second = halo_second.descendent
     print(np.log10(halo_second['virial_radius'].to('unitary').v))
@@ -115,5 +115,21 @@ for i in range(3): #make plot till timestep 193 (193 - 180 + 1 = 14)
     halo_second = halo_second.descendent
     time_counter += 1
     
+#------------------------------------------------------------------------------------
+#Manually add the second merger to AREPO halolist file
+#Timestep 195 is the last timestep the secondary galaxy (Halo ID = 496 ) exists before merging 
+
+halo_second_195 = list(arbor.select_halos("(tree['forest', 'halo_id'] == 496)  & (tree['forest', 'Snap_idx'] == 195)"))[0]
+output = {}
+output['0_7'] = {}
+
+branch = list(halo_second_195['prog'])
+for halo in branch:
+    snap = halo['Snap_idx']
+    coor = halo['position'].v.tolist()
+    rvir = halo['virial_radius'].to('unitary').v.tolist()
+    output['0_7'][snap] = [coor,rvir]
+
+np.save('halotree_AREPO_second_merger.npy',output)
 
     
