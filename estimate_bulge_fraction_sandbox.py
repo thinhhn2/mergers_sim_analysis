@@ -20,6 +20,7 @@ index_f = '142'
 def f_rot_cal(index):
     stars_data = np.load('metadata/branch-0/stars_%s.npy' % index,allow_pickle=True).tolist()
     bary_data = np.load('metadata/branch-0/bary_%s.npy' % index,allow_pickle=True).tolist()
+    dm_data = np.load('metadata/branch-0/dm_%s.npy' % index,allow_pickle=True).tolist()
     angmoment_data = np.load('metadata/branch-0/angmoment_branch-0.npy',allow_pickle=True).tolist()[index]
     
     angmoment_unitvec = angmoment_data['angmoment_unitvec']
@@ -29,6 +30,15 @@ def f_rot_cal(index):
     b_relcoor = bary_data['rel_coor']
     b_mass = bary_data['mass']
     b_r = np.linalg.norm(b_relcoor,axis=1)
+
+    dm_coor = dm_data['coor']
+    dm_mass = dm_data['mass']
+    dm_relcoor = dm_coor - com_coor_bary
+    dm_r = np.linalg.norm(dm_relcoor,axis=1)
+
+    total_mass = np.append(b_mass,dm_mass)
+    total_r = np.append(b_r,dm_r)
+
     s_coor = stars_data['coor']
     s_mass = stars_data['mass']
     s_vel = stars_data['vel']
@@ -40,7 +50,8 @@ def f_rot_cal(index):
     
     s_jc = np.array([])
     for i in range(len(s_mass)):
-        M = b_mass[b_r <  s_r[i]].sum()
+        #M = b_mass[b_r <  s_r[i]].sum()
+        M = total_mass[total_r < s_r[i]].sum()
         s_jc = np.append(s_jc, u.kpc.to('km')*s_r[i]*np.sqrt(Gv*M/s_r[i]))
         
     f_rot = s_jz/s_jc
@@ -60,12 +71,12 @@ sns.kdeplot(x=data_f['f_rot'], weights=data_f['mass'],gridsize=500,label='after'
 plt.axvline(1,ls='--',color='black')
 plt.axvline(-1,ls='--',color='black')
 plt.xlim(-5,5)
-plt.ylim(0,0.82)
+plt.ylim(0,1.2)
 plt.xlabel(r'$f_{rot}=j_z/j_c$',fontsize=14)
 plt.ylabel('Density weighted by mass',fontsize=14)
 plt.title(codetp,weight='bold')
 plt.xticks(fontsize=14)
 plt.yticks(fontsize=14)
 plt.legend(fontsize=14)
-plt.savefig('bulge_fraction_1st_merger.png', dpi=400, bbox_inches='tight')
+plt.savefig('bulge_fraction_1st_merger_with_dm.png', dpi=400, bbox_inches='tight')
     
