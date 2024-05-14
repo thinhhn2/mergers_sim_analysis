@@ -26,7 +26,7 @@ else:
     snapshot_list = []
     file_list = glob.glob('metadata/branch-%s/stars_*' % branch)
     for file in file_list:
-        temp = file.split('_')[1]
+        temp = file.split('stars_')[1]
         snapshot_list.append(temp.split('.npy')[0])
 
 my_storage= {}
