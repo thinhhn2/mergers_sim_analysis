@@ -152,6 +152,8 @@ for sto, snapshot_idx in yt.parallel_objects(tree[branch_idx].keys(), nprocs-1, 
         p.annotate_sphere(com.tolist(), radius=(radius500_kpc, "kpc"), circle_args={"color": "black"})
         p.set_unit(("stars", "particle_mass"), "Msun/kpc**2")
         p.set_colorbar_label(("stars", "particle_mass"),r'$\Sigma_{*}$ $(\mathrm{M}_\odot/\mathrm{kpc}^{2})$')
+        if i == 1:
+            p.annotate_title('R500 = %.2f Rvir' % radius500_kpc/rvir_kpc)
         p.plots[('stars', 'particle_mass')].figure = fig
         p.plots[('stars', 'particle_mass')].axes = grid[i].axes
         p.plots[('stars', 'particle_mass')].cax = grid.cbar_axes[i]
