@@ -64,6 +64,8 @@ def Find_Com_HighestDensity(ds, reg, deposit_dim = 5):
     halo_rvir = reg.radius.to('code_length').v
     #Divide the region into grids to quickly find the maximum stellar density coordinate
     reg_grid = ds.arbitrary_grid(halo_com - halo_rvir, halo_com + halo_rvir ,dims=[deposit_dim,deposit_dim,deposit_dim])
+    star_name_dict = {'ENZO':'stars','GADGET3':'PartType4','GEAR':'PartType1','AREPO':'PartType4',\
+                    'GIZMO':'PartType4','RAMSES':'star','ART':'stars','CHANGA':'Stars'}
     density_grid = reg_grid['deposit',star_name_dict[codetp]+'_density'].to('Msun/kpc**3').v
     density_grid_flat = density_grid.flatten()
     #Find the index of maximum density
@@ -148,33 +150,34 @@ for sto, snapshot_idx in yt.parallel_objects(tree[branch_idx].keys(), nprocs-1, 
         pos = reg['NormalMatter','particle_position'].to('m').v
         mass = reg['NormalMatter','particle_mass'].to('kg').v
     
-    if snapshot_idx == 143 and codetp == 'ENZO':
+    if int(snapshot_idx) == 143 and codetp == 'ENZO':
         initial_gal_com = np.array([0.49442,0.51790,0.50258])
-    elif snapshot_idx == 144 and codetp == 'ENZO':
+    elif int(snapshot_idx) == 144 and codetp == 'ENZO':
         initial_gal_com = np.array([0.49445,0.51805,0.50263])
-    elif snapshot_idx == 145 and codetp == 'ENZO':
+    elif int(snapshot_idx) == 145 and codetp == 'ENZO':
         initial_gal_com = np.array([0.49439,0.51815,0.50270])
-    elif snapshot_idx == 146 and codetp == 'ENZO':
+    elif int(snapshot_idx) == 146 and codetp == 'ENZO':
         initial_gal_com = np.array([0.49429,0.51840,0.50277])
-    elif snapshot_idx == 147 and codetp == 'ENZO':
+    elif int(snapshot_idx) == 147 and codetp == 'ENZO':
         initial_gal_com = np.array([0.49419,0.51855,0.50285])
-    elif snapshot_idx == 148 and codetp == 'ENZO':
+    elif int(snapshot_idx) == 148 and codetp == 'ENZO':
         initial_gal_com = np.array([0.49405,0.51869,0.50297])
-    elif snapshot_idx == 149 and codetp == 'ENZO':
+    elif int(snapshot_idx) == 149 and codetp == 'ENZO':
         initial_gal_com = np.array([0.49393,0.51885,0.50312])
-    elif snapshot_idx == 150 and codetp == 'ENZO':
+    elif int(snapshot_idx) == 150 and codetp == 'ENZO':
         initial_gal_com = np.array([0.49380,0.51900,0.50332])
-    elif snapshot_idx == 151 and codetp == 'ENZO':
+    elif int(snapshot_idx) == 151 and codetp == 'ENZO':
         initial_gal_com = np.array([0.49372,0.51917,0.50339])
     else:
         initial_gal_com = Find_Com_HighestDensity(ds, reg)
 
     initial_gal_com_m = (initial_gal_com*ds.units.code_length).in_units('m').v
     initial_gal_com_kpc = (initial_gal_com*ds.units.code_length).in_units('kpc').v
-    gal_com_m, gal_r2000_m = Find_Com_and_virRad(initial_gal_com_m, halo_rvir, pos, mass, oden=2000) #R2000 using star and gas
+    halo_rvir_m = (halo_rvir*ds.units.code_length).to('m').v.tolist()
+    halo_rvir_kpc = (halo_rvir*ds.units.code_length).in_units('kpc').v.tolist()
+    gal_com_m, gal_r2000_m = Find_Com_and_virRad(initial_gal_com_m, halo_rvir_m, pos, mass, oden=2000) #R2000 using star and gas
     gal_com = (gal_com_m*ds.units.m).in_units('code_length').v
     gal_r2000_kpc = (gal_r2000_m*ds.units.m).in_units('kpc').v
-    halo_rvir_kpc = (halo_rvir*ds.units.code_length).in_units('kpc').v.tolist()
     
     #Plotting the surface mass density in 3 axis
     fig = plt.figure()
@@ -226,21 +229,21 @@ for sto, snapshot_idx in yt.parallel_objects(tree[branch_idx].keys(), nprocs-1, 
     ax.tick_params(axis='y', labelsize=14)
     """
     
-    r = np.linalg.norm(pos - gal_com_m, axis = 1)
-    mass_gal = mass[r < gal_r2000_m]
-    r_gal = r[r < gal_r2000_m]
+    r_m = np.linalg.norm(pos - gal_com_m, axis = 1)
+    mass_gal = mass[r_m < gal_r2000_m]
+    r_gal_m = r_m[r_m < gal_r2000_m]
     
-    dip, pval = diptest.diptest(r_gal*mass_gal)
-    if pval <= 0.05:
-        print('This is a multimodal distribution')
-    else:
-        print('This is a unimodal distribution')
+    #dip, pval = diptest.diptest(r_gal*mass_gal)
+    #if pval <= 0.05:
+    #    print('This is a multimodal distribution')
+    #else:
+    #    print('This is a unimodal distribution')
     
     #plt.figure()
     #plt.hist(r_gal,weights=mass_gal, bins=75)
     
     mass_gal_Msun = (mass_gal*ds.units.kg).to('Msun').v
-    r_gal_kpc = (r_gal*ds.units.m).to('kpc').v
+    r_gal_kpc = (r_gal_m*ds.units.m).to('kpc').v
     data = {'r':r_gal_kpc, 'mass':mass_gal_Msun}
     
     plt.figure(figsize=(9,6))
@@ -254,3 +257,22 @@ for sto, snapshot_idx in yt.parallel_objects(tree[branch_idx].keys(), nprocs-1, 
     ax.yaxis.get_offset_text().set_fontsize(14)
     ax.set_title('Hartigan\'s dip test p-value: %.3f' % pval, fontsize=15)
     plt.savefig('mass_distribution_plots_2/radial_mass_distribution_%s_%s.png' % (branch_idx, snapshot_idx), dpi=600, bbox_inches='tight')
+
+
+    #Using scipy.curve_fit to fit the double Gaussian model
+    #from scipy.optimize import curve_fit
+    #def bimodal_gaussian(x, amp1, mean1, sigma1, amp2, mean2, sigma2):
+    #    return (amp1 * np.exp(-(x - mean1)**2 / (2 * sigma1**2)) + amp2 * np.exp(-(x - mean2)**2 / (2 * sigma2**2)))
+    
+    #y,x = np.histogram(r_gal_kpc,bins=75,weights=mass_gal_Msun)
+    #x=(x[1:]+x[:-1])/2
+    #initial_guess = [1e6, 0.1, 0.05, 1e6, 0.5, 0.05]
+    #params,cov=curve_fit(bimodal_gaussian,x,y,initial_guess)
+    #plt.hist(r_gal_kpc, bins=75, weights=mass_gal_Msun)
+    #plt.plot(x,bimodal_gaussian(x,*params),color='red',lw=3,label='model')
+    #plt.show()
+
+
+
+
+
