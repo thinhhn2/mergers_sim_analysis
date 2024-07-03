@@ -7,6 +7,7 @@ import astropy.units as u
 from yt.data_objects.particle_filters import add_particle_filter
 from yt.data_objects.unions import ParticleUnion
 from mpl_toolkits.axes_grid1 import AxesGrid
+import os
 
 yt.enable_parallelism()
 from mpi4py import MPI
@@ -78,8 +79,9 @@ def Find_Com_HighestDensity(ds, reg, deposit_dim = 5):
     initial_gal_com = center_grid[maxdensity_idx[0],maxdensity_idx[1],maxdensity_idx[2],:]
     return initial_gal_com
 
-tree = np.load('halotree_Thinh_structure_with_com.npy',allow_pickle=True).tolist()
-pfs = np.loadtxt('pfs_manual.dat',dtype=str)
+os.chdir('/scratch/bbvl/tnguyen2/ENZO')
+tree = np.load('/scratch/bbvl/tnguyen2/ENZO/halotree_Thinh_structure_with_com.npy',allow_pickle=True).tolist()
+pfs = np.loadtxt('/scratch/bbvl/tnguyen2/ENZO/pfs_manual.dat',dtype=str)
 codetp = 'ENZO'
 
 branch_idx = '0'
@@ -87,17 +89,17 @@ branch_idx = '0'
 my_storage= {}
 
 for sto, snapshot_idx in yt.parallel_objects(tree[branch_idx].keys(), nprocs-1, storage = my_storage):
+    #
     halo = tree[branch_idx][snapshot_idx]
-    
     if codetp == 'GADGET3' or codetp == 'AREPO':
         ds = yt.load(pfs[int(snapshot_idx)], unit_base = {"length": (1.0, "Mpccm/h")})
     else: 
         ds = yt.load(pfs[int(snapshot_idx)])
-    
+    #
     halo_com = halo['coor']
     halo_rvir = halo['Rvir']
     reg = ds.sphere(halo_com,(halo_rvir,'code_length'))
-    
+    #
     #Finding R2000 using gas + stars particles
     if codetp == 'ENZO':
         def stars(pfilter, data):
@@ -105,6 +107,9 @@ for sto, snapshot_idx in yt.parallel_objects(tree[branch_idx].keys(), nprocs-1, 
              return filter_stars
         add_particle_filter("stars", function=stars, filtered_type="all", requires=["particle_type"])
         ds.add_particle_filter("stars")
+        #ptype = reg['all', 'particle_type'].v
+        #pos_star = reg['all','particle_position'].to('m').v[ptype == 2]
+        #mass_star = reg['all','particle_mass'].to('kg').v[ptype == 2]
         pos_star = reg["stars","particle_position"].in_units('m').v
         mass_star = reg["stars","particle_mass"].in_units('kg').v
         x_gas = reg['gas','x'].to('m').v
@@ -149,7 +154,7 @@ for sto, snapshot_idx in yt.parallel_objects(tree[branch_idx].keys(), nprocs-1, 
         ds.add_particle_union(nm)
         pos = reg['NormalMatter','particle_position'].to('m').v
         mass = reg['NormalMatter','particle_mass'].to('kg').v
-    
+    #
     if int(snapshot_idx) == 143 and codetp == 'ENZO':
         initial_gal_com = np.array([0.49442,0.51790,0.50258])
     elif int(snapshot_idx) == 144 and codetp == 'ENZO':
@@ -170,7 +175,7 @@ for sto, snapshot_idx in yt.parallel_objects(tree[branch_idx].keys(), nprocs-1, 
         initial_gal_com = np.array([0.49372,0.51917,0.50339])
     else:
         initial_gal_com = Find_Com_HighestDensity(ds, reg)
-
+    #
     initial_gal_com_m = (initial_gal_com*ds.units.code_length).in_units('m').v
     initial_gal_com_kpc = (initial_gal_com*ds.units.code_length).in_units('kpc').v
     halo_rvir_m = (halo_rvir*ds.units.code_length).to('m').v.tolist()
@@ -178,10 +183,14 @@ for sto, snapshot_idx in yt.parallel_objects(tree[branch_idx].keys(), nprocs-1, 
     gal_com_m, gal_r2000_m = Find_Com_and_virRad(initial_gal_com_m, halo_rvir_m, pos, mass, oden=2000) #R2000 using star and gas
     gal_com = (gal_com_m*ds.units.m).in_units('code_length').v
     gal_r2000_kpc = (gal_r2000_m*ds.units.m).in_units('kpc').v
-    
+    gal_r2000 = (gal_r2000_m*ds.units.m).in_units('code_length').v
+    #Export the data
+    output = {}
+    output['gal_com'] = gal_com
+    output['gal_r2000'] = gal_r2000
+    np.save('radius_2000/gal_com_r2000_SnapIdx_%s.npy' % snapshot_idx, output)
     #Plotting the surface mass density in 3 axis
     fig = plt.figure()
-    
     grid = AxesGrid(
         fig,
         (0.075, 0.075, 0.85, 0.85),
@@ -194,7 +203,7 @@ for sto, snapshot_idx in yt.parallel_objects(tree[branch_idx].keys(), nprocs-1, 
         cbar_size="5%",
         cbar_pad="0%",
     )
-    
+    #
     for i in range(3):
         # Load the data and create a single plot
         p = yt.ParticleProjectionPlot(ds, i, [("stars","particle_mass")], center = (gal_com,'code_length'), width = (2*halo_rvir_kpc, 'kpc'),density=True,fontsize=12)
@@ -208,9 +217,8 @@ for sto, snapshot_idx in yt.parallel_objects(tree[branch_idx].keys(), nprocs-1, 
         p.plots[('stars', 'particle_mass')].cax = grid.cbar_axes[i]
         # Finally, this actually redraws the plot.
         p.render()
-    
-    plt.savefig("surface_star_density_plots_2/surface_mass_density_%s_%s.png" % (branch_idx, snapshot_idx),dpi=600,bbox_inches='tight')
-    
+    #
+    plt.savefig("radius_2000/surface_mass_density_%s_%s.png" % (branch_idx, snapshot_idx),dpi=600,bbox_inches='tight')
     
     """
     p = yt.ParticleProjectionPlot(ds,normal=2,fields=[("stars", "particle_mass")],center=(com_kpc,'kpc'),width=(rvir_kpc,'kpc'),density=True)
@@ -228,24 +236,16 @@ for sto, snapshot_idx in yt.parallel_objects(tree[branch_idx].keys(), nprocs-1, 
     ax.tick_params(axis='x', labelsize=14)
     ax.tick_params(axis='y', labelsize=14)
     """
-    
+    """
+    #Make the radial mass distribution plot
     r_m = np.linalg.norm(pos - gal_com_m, axis = 1)
     mass_gal = mass[r_m < gal_r2000_m]
     r_gal_m = r_m[r_m < gal_r2000_m]
-    
-    #dip, pval = diptest.diptest(r_gal*mass_gal)
-    #if pval <= 0.05:
-    #    print('This is a multimodal distribution')
-    #else:
-    #    print('This is a unimodal distribution')
-    
-    #plt.figure()
-    #plt.hist(r_gal,weights=mass_gal, bins=75)
-    
+    #
     mass_gal_Msun = (mass_gal*ds.units.kg).to('Msun').v
     r_gal_kpc = (r_gal_m*ds.units.m).to('kpc').v
     data = {'r':r_gal_kpc, 'mass':mass_gal_Msun}
-    
+    #
     plt.figure(figsize=(9,6))
     ax = sns.histplot(data=data, x = 'r', weights='mass', bins=75, kde=True, alpha=0.2, color='tab:blue',kde_kws={'gridsize':500,'bw_adjust':0.4})
     ax.lines[0].set_color('blue')
@@ -255,10 +255,10 @@ for sto, snapshot_idx in yt.parallel_objects(tree[branch_idx].keys(), nprocs-1, 
     ax.tick_params(axis='x', labelsize=14)
     ax.tick_params(axis='y', labelsize=14)
     ax.yaxis.get_offset_text().set_fontsize(14)
-    ax.set_title('Hartigan\'s dip test p-value: %.3f' % pval, fontsize=15)
+    #ax.set_title('Hartigan\'s dip test p-value: %.3f' % pval, fontsize=15)
     plt.savefig('mass_distribution_plots_2/radial_mass_distribution_%s_%s.png' % (branch_idx, snapshot_idx), dpi=600, bbox_inches='tight')
-
-
+    #
+    """
     #Using scipy.curve_fit to fit the double Gaussian model
     #from scipy.optimize import curve_fit
     #def bimodal_gaussian(x, amp1, mean1, sigma1, amp2, mean2, sigma2):
