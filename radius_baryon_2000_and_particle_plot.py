@@ -9,8 +9,6 @@ import numpy as np
 import yt
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-import seaborn as sns
-#import diptest
 import astropy.units as u 
 from yt.data_objects.particle_filters import add_particle_filter
 from yt.data_objects.unions import ParticleUnion
@@ -57,13 +55,13 @@ def Find_Com_and_virRad(initial_gal_com, halo_rvir, pos, mass, ds, oden=500):
 
 codetp = 'ENZO'
 os.chdir('/scratch/bbvl/tnguyen2/%s' % codetp)
-if not os.path.exists('/scratch/bbvl/tnguyen2/%s/radius_2000' % codetp):
-    os.mkdir('/scratch/bbvl/tnguyen2/%s/radius_2000' % codetp)
+if not os.path.exists('/scratch/bbvl/tnguyen2/%s/radius_2000_%s' % (codetp, codetp)):
+    os.mkdir('/scratch/bbvl/tnguyen2/%s/radius_2000_%s' % (codetp, codetp))
 
 if codetp == 'ENZO':
     tree = np.load('/scratch/bbvl/tnguyen2/ENZO/halotree_Thinh_structure_with_com.npy',allow_pickle=True).tolist()
 elif codetp == 'AREPO':
-    tree = np.load('/scratch/bbvl/tnguyen2/ENZO/halotree_Thinh_structure_refinedboundary_2nd_manual_add_2nd_merger.npy',allow_pickle=True).tolist()
+    tree = np.load('/scratch/bbvl/tnguyen2/AREPO/halotree_Thinh_structure_refinedboundary_2nd_manual_add_2nd_merger.npy',allow_pickle=True).tolist()
 else:
     tree = np.load('/scratch/bbvl/tnguyen2/%s/halotree_Thinh_structure_refinedboundary_2nd.npy' % codetp, allow_pickle=True).tolist()
 
@@ -84,34 +82,50 @@ for sto, snapshot_idx in yt.parallel_objects(list(tree[branch_idx].keys())[73:],
     #
     halo_com = halo['coor']
     halo_rvir = halo['Rvir']
-
+    #
     #Finding R2000 using gas + stars particles
     bary_metadata = np.load('/scratch/bbvl/tnguyen2/%s/metadata/branch-0/bary_%s.npy' % (codetp, snapshot_idx), allow_pickle=True).tolist()
     pos_kpc = bary_metadata['rel_coor'] + bary_metadata['com_coor_bary']
     pos = (pos_kpc*ds.units.kpc).to('m').v
     mass = (bary_metadata['mass']*ds.units.Msun).to('kg').v
-    #
-    if int(snapshot_idx) == 143 and codetp == 'ENZO':
-        initial_gal_com = np.array([0.49442,0.51790,0.50258])
-    elif int(snapshot_idx) == 144 and codetp == 'ENZO':
-        initial_gal_com = np.array([0.49445,0.51805,0.50263])
-    elif int(snapshot_idx) == 145 and codetp == 'ENZO':
-        initial_gal_com = np.array([0.49439,0.51815,0.50270])
-    elif int(snapshot_idx) == 146 and codetp == 'ENZO':
-        initial_gal_com = np.array([0.49429,0.51840,0.50277])
-    elif int(snapshot_idx) == 147 and codetp == 'ENZO':
-        initial_gal_com = np.array([0.49419,0.51855,0.50285])
-    elif int(snapshot_idx) == 148 and codetp == 'ENZO':
-        initial_gal_com = np.array([0.49405,0.51869,0.50297])
-    elif int(snapshot_idx) == 149 and codetp == 'ENZO':
-        initial_gal_com = np.array([0.49393,0.51885,0.50312])
-    elif int(snapshot_idx) == 150 and codetp == 'ENZO':
-        initial_gal_com = np.array([0.49380,0.51900,0.50332])
-    elif int(snapshot_idx) == 151 and codetp == 'ENZO':
-        initial_gal_com = np.array([0.49372,0.51917,0.50339])
-    else:
-        #initial_gal_com = Find_Com_HighestDensity(ds, reg)
-        initial_gal_com = np.array(halo_com)
+    #ART ALSO HAS PROBLEMS FROM SNAPSHOT IDX 122 TO 131, NEED TO ADD THE INITIAL COM MANUALLY
+    if codetp == 'ENZO':
+        if branch_idx == '0':
+            if int(snapshot_idx) == 143:
+                initial_gal_com = np.array([0.49442,0.51790,0.50258])
+            elif int(snapshot_idx) == 144:
+                initial_gal_com = np.array([0.49445,0.51805,0.50263])
+            elif int(snapshot_idx) == 145:
+                initial_gal_com = np.array([0.49439,0.51815,0.50270])
+            elif int(snapshot_idx) == 146:
+                initial_gal_com = np.array([0.49429,0.51840,0.50277])
+            elif int(snapshot_idx) == 147:
+                initial_gal_com = np.array([0.49419,0.51855,0.50285])
+            elif int(snapshot_idx) == 148:
+                initial_gal_com = np.array([0.49405,0.51869,0.50297])
+            elif int(snapshot_idx) == 149:
+                initial_gal_com = np.array([0.49393,0.51885,0.50312])
+            elif int(snapshot_idx) == 150:
+                initial_gal_com = np.array([0.49380,0.51900,0.50332])
+            elif int(snapshot_idx) == 151:
+                initial_gal_com = np.array([0.49372,0.51917,0.50339])
+            else:
+                initial_gal_com = np.array(halo_com)
+        if branch_idx == '0_9': #first merger in ENZO
+            if int(snapshot_idx) == 143: #do manually for 143 to 148 (at 149, the two galaxies fall in the same R2000 radius)
+                initial_gal_com = np.array([0.49412,0.51791,0.50302])
+    if codetp == 'CHANGA':
+        if branch_idx == '0':
+            if int(snapshot_idx) == 112:
+                initial_gal_com = np.array([-0.00605,0.01862,0.00256])
+            if int(snapshot_idx) == 113:
+                initial_gal_com = np.array([-0.00608,0.01875,0.00259])
+            if int(snapshot_idx) == 114:
+                initial_gal_com = np.array([-0.00612,0.01884,0.00261])
+            if int(snapshot_idx) == 116:
+                initial_gal_com = np.array([-0.00625,0.01905,0.00269])
+            else:
+                initial_gal_com = np.array(halo_com)
     #
     initial_gal_com_m = (initial_gal_com*ds.units.code_length).in_units('m').v
     initial_gal_com_kpc = (initial_gal_com*ds.units.code_length).in_units('kpc').v
@@ -126,7 +140,7 @@ for sto, snapshot_idx in yt.parallel_objects(list(tree[branch_idx].keys())[73:],
     output = {}
     output['gal_com'] = gal_com
     output['gal_r2000'] = gal_r2000
-    np.save('radius_2000/gal_com_r2000_SnapIdx_%s.npy' % snapshot_idx, output)
+    np.save('radius_2000_%s/gal_com_r2000_SnapIdx_%s.npy' % (codetp, snapshot_idx), output)
     #-----------------------------------------------------------------------------------------------
     #Plotting the surface mass density in 3 axis
     star_metadata = np.load('/scratch/bbvl/tnguyen2/%s/metadata/branch-0/stars_%s.npy' % (codetp, snapshot_idx), allow_pickle=True).tolist()
@@ -176,4 +190,14 @@ for sto, snapshot_idx in yt.parallel_objects(list(tree[branch_idx].keys())[73:],
     ax3.set_ylim(-coor_lim, coor_lim)
     #
     plt.tight_layout()
-    plt.savefig("radius_2000/surface_mass_density_%s_%s.png" % (branch_idx, snapshot_idx),dpi=300,bbox_inches='tight')    
+    plt.savefig("radius_2000_%s/surface_mass_density_%s_%s.png" % (codetp, branch_idx, snapshot_idx),dpi=300,bbox_inches='tight')    
+    
+#------------------------------------------------------------------------------
+#Combine all the individual r2000 files into one
+gal_com_r2000 = {}
+snapidx_range = np.arange(98, 332, 1)
+for snapidx in snapidx_range:
+    data = np.load('gal_com_r2000_SnapIdx_%s.npy' % snapidx, allow_pickle=True).tolist()
+    gal_com_r2000[snapidx] = [data['gal_com'], data['gal_r2000']]
+
+np.save('gal_com_r2000.npy', gal_com_r2000)    
