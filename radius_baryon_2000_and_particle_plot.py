@@ -53,7 +53,7 @@ def Find_Com_and_virRad(initial_gal_com, halo_rvir, pos, mass, ds, oden=500):
     return com, virRad
 
 
-codetp = 'GIZMO'
+codetp = 'GEAR'
 os.chdir('/scratch/bbvl/tnguyen2/%s' % codetp)
 if not os.path.exists('/scratch/bbvl/tnguyen2/%s/radius_2000_%s' % (codetp, codetp)):
     os.mkdir('/scratch/bbvl/tnguyen2/%s/radius_2000_%s' % (codetp, codetp))
@@ -67,13 +67,14 @@ else:
 
 pfs = np.loadtxt('/scratch/bbvl/tnguyen2/%s/pfs_manual.dat' % codetp, dtype=str)
 
-branch_idx = '0_2'
+branch_idx = '0_10'
 
 my_storage= {}
 
-oden_lim = 10000 #R2000 (generally) and R10000 (to isolate the secondary better)
+oden_lim = 10000 #R2000 (generally) and, R5000, R7500, or R10000 (to isolate the secondary better)
 #for sto, snapshot_idx in yt.parallel_objects(list(tree[branch_idx].keys())[73:], nprocs-1, storage = my_storage):
-for snapshot_idx in list(tree['0'].keys())[117:122]:
+for snapshot_idx in list(tree['0'].keys())[327:330]:
+#for snapshot_idx in [list(tree['0'].keys())[129]]:
     #
     print('Starting the analysis for', snapshot_idx)
     if codetp == 'GADGET3' or codetp == 'AREPO':
@@ -126,6 +127,24 @@ for snapshot_idx in list(tree['0'].keys())[117:122]:
             halo = tree[branch_idx][snapshot_idx]
             halo_com = halo['coor']
             halo_rvir = halo['Rvir']
+    elif codetp == 'RAMSES':
+        if branch_idx == '0_4' and int(snapshot_idx) > 137:
+            halo = tree['0'][snapshot_idx]
+            halo_com = halo['coor']
+            halo_rvir = halo['Rvir']
+        else:
+            halo = tree[branch_idx][snapshot_idx]
+            halo_com = halo['coor']
+            halo_rvir = halo['Rvir']
+    elif codetp == 'GEAR':
+        if branch_idx == '0_10' and int(snapshot_idx) > 394:
+            halo = tree['0'][snapshot_idx]
+            halo_com = halo['coor']
+            halo_rvir = halo['Rvir']
+        else:
+            halo = tree[branch_idx][snapshot_idx]
+            halo_com = halo['coor']
+            halo_rvir = halo['Rvir']
     else:
         halo = tree[branch_idx][snapshot_idx]
         halo_com = halo['coor']
@@ -154,6 +173,16 @@ for snapshot_idx in list(tree['0'].keys())[117:122]:
             bary_metadata = np.load('/scratch/bbvl/tnguyen2/%s/metadata/branch-%s/bary_%s.npy' % (codetp, branch_idx, snapshot_idx), allow_pickle=True).tolist()
     elif codetp == 'CHANGA':
         if branch_idx == '0_5' and int(snapshot_idx) > 108:
+            bary_metadata = np.load('/scratch/bbvl/tnguyen2/%s/metadata/branch-0/bary_%s.npy' % (codetp, snapshot_idx), allow_pickle=True).tolist()
+        else:
+            bary_metadata = np.load('/scratch/bbvl/tnguyen2/%s/metadata/branch-%s/bary_%s.npy' % (codetp, branch_idx, snapshot_idx), allow_pickle=True).tolist()
+    elif codetp == 'RAMSES':
+        if branch_idx == '0_4' and int(snapshot_idx) > 137:
+            bary_metadata = np.load('/scratch/bbvl/tnguyen2/%s/metadata/branch-0/bary_%s.npy' % (codetp, snapshot_idx), allow_pickle=True).tolist()
+        else:
+            bary_metadata = np.load('/scratch/bbvl/tnguyen2/%s/metadata/branch-%s/bary_%s.npy' % (codetp, branch_idx, snapshot_idx), allow_pickle=True).tolist()
+    elif codetp == 'GEAR':
+        if branch_idx == '0_10' and int(snapshot_idx) > 394:
             bary_metadata = np.load('/scratch/bbvl/tnguyen2/%s/metadata/branch-0/bary_%s.npy' % (codetp, snapshot_idx), allow_pickle=True).tolist()
         else:
             bary_metadata = np.load('/scratch/bbvl/tnguyen2/%s/metadata/branch-%s/bary_%s.npy' % (codetp, branch_idx, snapshot_idx), allow_pickle=True).tolist()
@@ -277,32 +306,91 @@ for snapshot_idx in list(tree['0'].keys())[117:122]:
                 initial_gal_com = np.array(halo_com)
         elif branch_idx == '0_5':
             if int(snapshot_idx) == 109: #do manually for 109 to 120
-                initial_gal_com = np.array([0, 0, 0])
+                initial_gal_com = np.array([-0.00614, 0.01836, 0.00281])
             elif int(snapshot_idx) == 110: 
-                initial_gal_com = np.array([0, 0, 0])
+                initial_gal_com = np.array([-0.00623, 0.01847, 0.00292])
             elif int(snapshot_idx) == 111: 
-                initial_gal_com = np.array([0, 0, 0])
+                initial_gal_com = np.array([-0.00630, 0.01855, 0.00300])
             elif int(snapshot_idx) == 112: 
-                initial_gal_com = np.array([0, 0, 0])
+                initial_gal_com = np.array([-0.00636, 0.01868, 0.00308])
             elif int(snapshot_idx) == 113: 
-                initial_gal_com = np.array([0, 0, 0])
+                initial_gal_com = np.array([-0.00640, 0.01880, 0.00311])
             elif int(snapshot_idx) == 114: 
-                initial_gal_com = np.array([0, 0, 0])
+                initial_gal_com = np.array([-0.00641, 0.01890, 0.00312])
             elif int(snapshot_idx) == 115: 
-                initial_gal_com = np.array([0, 0, 0])
+                initial_gal_com = np.array([-0.00645, 0.01900, 0.00315])
             elif int(snapshot_idx) == 116: 
-                initial_gal_com = np.array([0, 0, 0])
+                initial_gal_com = np.array([-0.00645, 0.01910, 0.00317])
             elif int(snapshot_idx) == 117: 
-                initial_gal_com = np.array([0, 0, 0])
+                initial_gal_com = np.array([-0.00646, 0.01920, 0.00314])
             elif int(snapshot_idx) == 118: 
-                initial_gal_com = np.array([0, 0, 0])
+                initial_gal_com = np.array([-0.00649, 0.01929, 0.00312])
             elif int(snapshot_idx) == 119: 
-                initial_gal_com = np.array([0, 0, 0])
+                initial_gal_com = np.array([-0.00647, 0.01952, 0.00305])
             elif int(snapshot_idx) == 120: 
-                initial_gal_com = np.array([0, 0, 0])
+                initial_gal_com = np.array([-0.00669, 0.01972, 0.00333])
             else:
                 initial_gal_com = np.array(halo_com)
-        
+    elif codetp == 'RAMSES':
+        if branch_idx == '0':
+            initial_gal_com = np.array(halo_com)
+        elif branch_idx == '0_4':
+            if int(snapshot_idx) == 138: #do manually for 141 to 145
+                initial_gal_com = np.array([0.49482, 0.51685, 0.50160])
+            elif int(snapshot_idx) == 139: 
+                initial_gal_com = np.array([0.49474, 0.51705, 0.50180])
+            elif int(snapshot_idx) == 140: 
+                initial_gal_com = np.array([0.49460, 0.51730, 0.50205])
+            elif int(snapshot_idx) == 141: 
+                initial_gal_com = np.array([0.49442, 0.51752, 0.50228])
+            elif int(snapshot_idx) == 142: 
+                initial_gal_com = np.array([0.49420, 0.51765, 0.50251])
+            elif int(snapshot_idx) == 143: 
+                initial_gal_com = np.array([0.49402, 0.51775, 0.50270])
+            elif int(snapshot_idx) == 144: 
+                initial_gal_com = np.array([0.49385, 0.51785, 0.50282])
+            elif int(snapshot_idx) == 145: 
+                initial_gal_com = np.array([0.49375, 0.51800, 0.50293])
+            elif int(snapshot_idx) == 146: 
+                initial_gal_com = np.array([0.49365, 0.51813, 0.50302])
+            elif int(snapshot_idx) == 147: 
+                initial_gal_com = np.array([0.49360, 0.51832, 0.50310])
+            elif int(snapshot_idx) == 148: 
+                initial_gal_com = np.array([0.49358, 0.51850, 0.50314])
+            elif int(snapshot_idx) == 149: 
+                initial_gal_com = np.array([0.49355, 0.51868, 0.50315])
+            elif int(snapshot_idx) == 150: 
+                initial_gal_com = np.array([0.49355, 0.51882, 0.50315])
+            elif int(snapshot_idx) == 151: 
+                initial_gal_com = np.array([0.49355, 0.51900, 0.50312])
+            elif int(snapshot_idx) == 152: 
+                initial_gal_com = np.array([0.49360, 0.51905, 0.50308])
+            elif int(snapshot_idx) == 153: 
+                initial_gal_com = np.array([0.49363, 0.51915, 0.50300])
+            elif int(snapshot_idx) == 154: 
+                initial_gal_com = np.array([0.49359, 0.51935, 0.50300])
+            else:
+                initial_gal_com = np.array(halo_com)
+    elif codetp == 'GEAR':
+        if branch_idx == '0':
+            initial_gal_com = np.array(halo_com)
+        elif branch_idx == '0_10':
+            if int(snapshot_idx) == 395: #do manually for 141 to 145
+                initial_gal_com = np.array([29600, 31152, 30193])
+            elif int(snapshot_idx) == 396: 
+                initial_gal_com = np.array([29600, 31155, 30193])
+            elif int(snapshot_idx) == 397: 
+                initial_gal_com = np.array([29612, 31157, 30190])
+            elif int(snapshot_idx) == 377: 
+                initial_gal_com = np.array([29641, 31098, 30153])
+            elif int(snapshot_idx) == 378: 
+                initial_gal_com = np.array([29637, 31103, 30159])
+            elif int(snapshot_idx) == 379: 
+                initial_gal_com = np.array([29631, 31107, 30165])
+            elif int(snapshot_idx) == 380: 
+                initial_gal_com = np.array([29627, 31110, 30170])
+            else:
+                initial_gal_com = np.array(halo_com)
     #
     initial_gal_com_m = (initial_gal_com*ds.units.code_length).in_units('m').v
     initial_gal_com_kpc = (initial_gal_com*ds.units.code_length).in_units('kpc').v
@@ -322,6 +410,8 @@ for snapshot_idx in list(tree['0'].keys())[117:122]:
         np.save('radius_2000_%s/branch-%s/gal_com_r2000_SnapIdx_%s.npy' % (codetp, branch_idx, snapshot_idx), output)
     elif oden_lim == 5000:
         np.save('radius_2000_%s/branch-%s/gal_com_r5000_SnapIdx_%s.npy' % (codetp, branch_idx, snapshot_idx), output)
+    elif oden_lim == 7500:
+        np.save('radius_2000_%s/branch-%s/gal_com_r7500_SnapIdx_%s.npy' % (codetp, branch_idx, snapshot_idx), output)
     elif oden_lim == 10000:
         np.save('radius_2000_%s/branch-%s/gal_com_r10000_SnapIdx_%s.npy' % (codetp, branch_idx, snapshot_idx), output)
     #-----------------------------------------------------------------------------------------------
@@ -343,6 +433,21 @@ for snapshot_idx in list(tree['0'].keys())[117:122]:
             star_metadata = np.load('/scratch/bbvl/tnguyen2/%s/metadata/branch-%s/stars_%s.npy' % (codetp, branch_idx, snapshot_idx), allow_pickle=True).tolist()
     if codetp == 'GIZMO':
         if branch_idx == '0_2' and int(snapshot_idx) > 140:
+            star_metadata = np.load('/scratch/bbvl/tnguyen2/%s/metadata/branch-0/stars_%s.npy' % (codetp, snapshot_idx), allow_pickle=True).tolist()
+        else:
+            star_metadata = np.load('/scratch/bbvl/tnguyen2/%s/metadata/branch-%s/stars_%s.npy' % (codetp, branch_idx, snapshot_idx), allow_pickle=True).tolist()
+    if codetp == 'CHANGA':
+        if branch_idx == '0_5' and int(snapshot_idx) > 108:
+            star_metadata = np.load('/scratch/bbvl/tnguyen2/%s/metadata/branch-0/stars_%s.npy' % (codetp, snapshot_idx), allow_pickle=True).tolist()
+        else:
+            star_metadata = np.load('/scratch/bbvl/tnguyen2/%s/metadata/branch-%s/stars_%s.npy' % (codetp, branch_idx, snapshot_idx), allow_pickle=True).tolist()
+    if codetp == 'RAMSES':
+        if branch_idx == '0_4' and int(snapshot_idx) > 137:
+            star_metadata = np.load('/scratch/bbvl/tnguyen2/%s/metadata/branch-0/stars_%s.npy' % (codetp, snapshot_idx), allow_pickle=True).tolist()
+        else:
+            star_metadata = np.load('/scratch/bbvl/tnguyen2/%s/metadata/branch-%s/stars_%s.npy' % (codetp, branch_idx, snapshot_idx), allow_pickle=True).tolist()
+    if codetp == 'GEAR':
+        if branch_idx == '0_10' and int(snapshot_idx) > 394:
             star_metadata = np.load('/scratch/bbvl/tnguyen2/%s/metadata/branch-0/stars_%s.npy' % (codetp, snapshot_idx), allow_pickle=True).tolist()
         else:
             star_metadata = np.load('/scratch/bbvl/tnguyen2/%s/metadata/branch-%s/stars_%s.npy' % (codetp, branch_idx, snapshot_idx), allow_pickle=True).tolist()
@@ -382,6 +487,8 @@ for snapshot_idx in list(tree['0'].keys())[117:122]:
         ax2.set_title(r'$r_{baryon,2000}$ = %.2f kpc = %.2f Rvir' % (gal_r2000_kpc, gal_r2000_kpc/halo_rvir_kpc), fontsize=16)
     elif oden_lim == 5000:
         ax2.set_title(r'$r_{baryon,5000}$ = %.2f kpc = %.2f Rvir' % (gal_r2000_kpc, gal_r2000_kpc/halo_rvir_kpc), fontsize=16)
+    elif oden_lim == 7500:
+        ax2.set_title(r'$r_{baryon,7500}$ = %.2f kpc = %.2f Rvir' % (gal_r2000_kpc, gal_r2000_kpc/halo_rvir_kpc), fontsize=16)
     elif oden_lim == 10000:
         ax2.set_title(r'$r_{baryon,10000}$ = %.2f kpc = %.2f Rvir' % (gal_r2000_kpc, gal_r2000_kpc/halo_rvir_kpc), fontsize=16)
     #
@@ -402,6 +509,8 @@ for snapshot_idx in list(tree['0'].keys())[117:122]:
         plt.savefig("radius_2000_%s/branch-%s/surface_mass_density_%s_%s.png" % (codetp, branch_idx, branch_idx, snapshot_idx),dpi=300,bbox_inches='tight') 
     elif oden_lim == 5000:
         plt.savefig("radius_2000_%s/branch-%s/surface_mass_density_%s_%s_R5000.png" % (codetp, branch_idx, branch_idx, snapshot_idx),dpi=300,bbox_inches='tight') 
+    elif oden_lim == 7500:
+        plt.savefig("radius_2000_%s/branch-%s/surface_mass_density_%s_%s_R7500.png" % (codetp, branch_idx, branch_idx, snapshot_idx),dpi=300,bbox_inches='tight') 
     elif oden_lim == 10000:
         plt.savefig("radius_2000_%s/branch-%s/surface_mass_density_%s_%s_R10000.png" % (codetp, branch_idx, branch_idx, snapshot_idx),dpi=300,bbox_inches='tight')    
     plt.close()
