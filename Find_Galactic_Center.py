@@ -14,8 +14,18 @@ class Find_Galactic_Center():
     """
     Parameters
     ----------
-    star_pos : numpy.ndarray
+    ds : yt dataset
+        The dataset snapshot of the simulation
+    oden : float
+        The overdensity threshold to find the center of the galaxy (common value is 2000)
+    halo_center : numpy.ndarray
+        The center of the DM halo
+    halo_rvir : float
+        The virial radius of the DM halo
+    star_pos : numpy.ndarray (optional)
         The positions of the star particles (stored in star_metadata file)
+    star_mass : numpy.ndarray (optional)
+        The masses of the star particles (stored in star_metadata file)
     """
     def __init__(self, ds, oden, halo_center, halo_rvir, star_pos = None, star_mass = None):
         self.ds = ds
