@@ -12,10 +12,18 @@ from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
 
 class Find_Galactic_Center():
     """
+    Parameters
+    ----------
+    star_pos : numpy.ndarray
+        The positions of the star particles (stored in star_metadata file)
     """
-    def __init__(self, ds, star_pos = None):
+    def __init__(self, ds, oden, halo_center, halo_rvir, star_pos = None, star_mass = None):
         self.ds = ds
+        self.oden = oden
+        self.halo_center = halo_center
+        self.halo_rvir = halo_rvir
         self.star_pos = star_pos if star_pos is not None else None
+        self.star_mass = star_mass if star_mass is not None else None
     #
     def plot_star_particles(self, center, radius):
         plt.figure(figsize=(22.5,8))
@@ -71,7 +79,7 @@ class Find_Galactic_Center():
         ax3.set_xlim(center[2] - radius, center[2] + radius)
         ax3.set_ylim(center[0] - radius, center[0] + radius)
         ax3.set_aspect('equal')
-        circle3 = plt.Circle((center[2], center[0]), radius, color='r', fill=False)
+        circle3 = plt.Circle((center[2], self.halo_center[0]), radius, color='r', fill=False)
         ax3.add_patch(circle3)
         #plt.locator_params(axis='both', nbins=10) 
         plt.tight_layout()   
@@ -84,4 +92,45 @@ class Find_Galactic_Center():
         # Density of the universe
         den = (3*H/(8*np.pi*G)).to("kg/m**3") / u.kg * u.m**3
         return den.value
+    #
+    def Find_Com_and_virRad(self,initial_gal_com_manual = False, initial_gal_com = None):
+        #Obtain the gas + star info in the halo
+        reg = self.ds.sphere(self.halo_center, (self.halo_rvir, 'code_length'))
+        gas_mass = reg['gas', 'cell_mass'].in_units("kg").v.tolist()
+        gas_x = reg[("gas","x")].in_units("m").v.tolist()
+        gas_y = reg[("gas","y")].in_units("m").v.tolist()
+        gas_z = reg[("gas","z")].in_units("m").v.tolist()
+        gas_pos = np.array([gas_x, gas_y, gas_z]).T
+        #
+        star_pos_si = (self.star_pos*self.ds.units.code_length).to('m').v
+        star_mass_si = (self.star_mass*self.ds.units.Msun).to('kg').v
+        pos = np.concatenate([star_pos_si, gas_pos], axis=0)
+        mass = np.append(star_mass_si, gas_mass)
+        if initial_gal_com_manual == True:
+            initial_gal_com = initial_gal_com
+        else:
+            zoomin = np.linalg.norm(self.star_pos - self.halo_center, axis=1) < 0.2*self.halo_rvir
+            initial_gal_com = np.average(star_pos_si[zoomin], weights=star_mass_si[zoomin], axis=0)
+        #
+        halo_rvir_si = (self.halo_rvir*self.ds.units.code_length).to('m').v
+        #Make sure the unit is in kg and m
+        extension = 0.1 #default is 0.1
+        virRad = 0.01*halo_rvir_si #default is 0.05
+        com = initial_gal_com
+        fden = np.inf
+        while extension >= 0.01:
+            virRad_new = virRad + extension*halo_rvir_si
+            r = np.linalg.norm(pos - com, axis=1)
+            pos_in = pos[r < virRad_new]
+            mass_in = mass[r < virRad_new]
+            den = np.sum(mass_in) / (4/3 * np.pi * virRad_new**3)
+            uden = self.univDen()
+            fden = den/uden
+            com_new = np.average(pos_in, weights=mass_in, axis=0)
+            if fden < self.oden:
+                extension -= 0.01
+            else:
+                com = com_new
+                virRad = virRad_new
+        return com, virRad
         
