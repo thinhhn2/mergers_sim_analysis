@@ -35,7 +35,7 @@ class Find_Galactic_Center():
         self.star_pos = star_pos if star_pos is not None else None
         self.star_mass = star_mass if star_mass is not None else None
     #
-    def plot_star_particles(self, center, radius):
+    def plot_star_particles(self, center, radius, saveplot = True, savedir = None):
         plt.figure(figsize=(22.5,8))
         #
         x = self.star_pos[:,0]
@@ -93,6 +93,8 @@ class Find_Galactic_Center():
         ax3.add_patch(circle3)
         #plt.locator_params(axis='both', nbins=10) 
         plt.tight_layout()   
+        if saveplot == True:
+            plt.savefig(savedir, dpi = 300, bbox_inches='tight')
     #
     def univDen(self):
         # Hubble constant
