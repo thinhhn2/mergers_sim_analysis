@@ -89,7 +89,7 @@ class Find_Galactic_Center():
         ax3.set_xlim(center[2] - radius, center[2] + radius)
         ax3.set_ylim(center[0] - radius, center[0] + radius)
         ax3.set_aspect('equal')
-        circle3 = plt.Circle((center[2], self.halo_center[0]), radius, color='r', fill=False)
+        circle3 = plt.Circle((center[2], center[0]), radius, color='r', fill=False)
         ax3.add_patch(circle3)
         #plt.locator_params(axis='both', nbins=10) 
         plt.tight_layout()   
