@@ -118,7 +118,7 @@ class Find_Galactic_Center():
         star_mass_si = (self.star_mass*self.ds.units.Msun).to('kg').v
         pos = np.concatenate([star_pos_si, gas_pos], axis=0)
         mass = np.append(star_mass_si, gas_mass)
-        if initial_gal_com_manual == True:
+        if initial_gal_com_manual == True: #the unit of initial_gal_com is in m
             initial_gal_com = initial_gal_com
         else:
             zoomin = np.linalg.norm(self.star_pos - self.halo_center, axis=1) < 0.2*self.halo_rvir
