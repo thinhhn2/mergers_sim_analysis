@@ -2,6 +2,12 @@ import numpy as np
 import ytree
 import glob as glob
 
+yt.enable_parallelism()
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+rank = comm.rank
+nprocs = comm.size
+
 def find_nearest(array, value):
     array = np.asarray(array)
     idx = (np.abs(array - value)).argmin()
@@ -31,8 +37,10 @@ refined_region_data_keys = np.array(list(refined_region_data.keys()))
 
 total_result = {}
  
+my_storage = {}
+for sto, tree_index in yt.parallel_objects(range(len(arbor)), nprocs, storage = my_storage):
 #for tree_index in range(len(arbor)):
-for tree_index in range(10):
+#for tree_index in range(10):
     #
     tree_result = {}
     #
@@ -119,8 +127,17 @@ for tree_index in range(10):
         index = subtree[-1]['Depth_first_ID'] + 1
         #
         #Merging the dictionaries from each tree
-        total_result = total_result | tree_result
+        #total_result = total_result | tree_result
+        sto.result = {}
+        sto.result[0] = tree_result
 
+output = {}
+for c, vals in sorted(my_storage.items()):
+    output = output | vals[0]
+
+np.save('/work/hdd/bbvl/tnguyen2/ENZO/halotrees_RCT_reformatted.npy',output)
+
+"""
 key_name = list(total_result.keys())
 
 mapping = {}  # Initialize an empty mapping
@@ -146,3 +163,5 @@ for key, value in total_result.items():
     modified_total_result[new_key] = value
 
 np.save('halotrees_Thinh.npy',modified_total_result)
+"""
+
