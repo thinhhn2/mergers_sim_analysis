@@ -96,6 +96,46 @@ class Find_Galactic_Center():
         if saveplot == True:
             plt.savefig(savedir, dpi = 300, bbox_inches='tight')
     #
+    def plot_gas_projection(self, center, char_radius, saveplot = False, savedir = None):
+        fig = plt.figure(figsize=(9*2,6*2))
+        grid = AxesGrid(
+            fig,
+            (0.075, 0.075, 0.85, 0.85),
+            nrows_ncols=(1, 3),
+            axes_pad=0.8,
+            label_mode="all",
+            cbar_pad="2%",
+            aspect=False,
+        )
+        #------------------------------------------------------------------------------
+        prj_list = ['z','x','y']
+        reg = self.ds.sphere(center, (self.halo_rvir, 'code_length'))
+        for j in range(3):
+            prj = yt.ProjectionPlot(
+                self.ds,
+                prj_list[j],
+                ("gas", "density"),
+                center = center,
+                width = self.halo_rvir,
+                weight_field=("gas", "density"),
+                data_source = reg
+            )
+            prj.set_cmap(("gas", "density"), 'viridis')
+            prj.set_font_size(14)
+            prj.set_unit(("gas", "density"), "Msun/pc**3")
+            prj.set_zlim(("gas", "density"), 1e-4, 1e4)
+            prj.annotate_sphere(
+                center,
+                radius=char_radius,
+                coord_system="data"
+            )
+            plot = prj.plots[("gas", "density")]
+            plot.figure = fig
+            plot.axes = grid[j].axes
+            prj.render()
+        if saveplot == True:
+            plt.savefig(savedir, dpi = 300, bbox_inches='tight')
+    #
     def univDen(self):
         # Hubble constant
         H0 = self.ds.hubble_constant * 100 * u.km/u.s/u.Mpc
