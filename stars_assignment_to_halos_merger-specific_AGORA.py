@@ -4,7 +4,6 @@ from astropy.constants import G
 import os
 import glob as glob
 from scipy.spatial.distance import cdist
-from yt.data_objects.unions import ParticleUnion
 import time as time_sys
 import collections
 import sys
@@ -150,14 +149,8 @@ def find_total_E(star_pos, star_vel, ds, rawtree_s, branch, idx, dense=True):
         massA_cut = cutparticles['mass']
     else:
         regA = ds.sphere(rawtree_s[branch][idx]['Halo_Center'], rawtree_s[branch][idx]['Halo_Radius'])
-        if codetp == 'GADGET3':
-            dm = ParticleUnion("DarkMatter",["PartType5","PartType1"])
-            ds.add_particle_union(dm)
-            massA = regA['DarkMatter','particle_mass'].to('kg').v
-            posA = regA['DarkMatter','particle_position'].to('m')
-        else:
-            massA = regA['all','particle_mass'].to('kg').v
-            posA = regA['all','particle_position'].to('m')
+        massA = regA['all','particle_mass'].to('kg').v
+        posA = regA['all','particle_position'].to('m')
         #velA = regA['all','particle_velocity'].to('m/s')
         #
         boolloc = np.linalg.norm(posA.to('code_length').v - rawtree_s[branch][idx]['Halo_Center'], axis=1) <= rawtree_s[branch][idx]['Halo_Radius']
@@ -203,11 +196,24 @@ def find_total_E(star_pos, star_vel, ds, rawtree_s, branch, idx, dense=True):
     E[np.isnan(E)] = 1e99
     """
     #use cdist, 100x faster
-    disAinv_cut = 1/cdist((star_pos*ds.units.code_length).to('m').v, posA_cut.v, 'euclidean')
-    disAinv_cut[~np.isfinite(disAinv_cut)] = 0
-    disAinv_cut[np.isnan(disAinv_cut)] = 0
+    if len(posA_cut) == 0:
+        chunk_size = np.inf
+    else:
+        chunk_size = int((10*1e9/8)/len(posA_cut)) #this will take as much 10 GB, should use 30 GB when running
+    if chunk_size >= len(star_pos):
+        disAinv_cut = 1/cdist((star_pos*ds.units.code_length).to('m').v, posA_cut.v, 'euclidean')
+        disAinv_cut[~np.isfinite(disAinv_cut)] = 0
+        disAinv_cut[np.isnan(disAinv_cut)] = 0
+        PE = np.sum(-G.value*massA_cut*disAinv_cut, axis=1)
+    else: #Cut the star_pos array by chunks to save memory
+        PE = np.array([])
+        for j in range(0, len(star_pos), chunk_size):
+            pos_chunk = star_pos[j : j + chunk_size, :]
+            disAinv_cut = 1/cdist((pos_chunk*ds.units.code_length).to('m').v, posA_cut.v, 'euclidean')
+            disAinv_cut[~np.isfinite(disAinv_cut)] = 0
+            disAinv_cut[np.isnan(disAinv_cut)] = 0
+            PE = np.append(PE, np.sum(-G.value*massA_cut*disAinv_cut, axis=1))
     #
-    PE = np.sum(-G.value*massA_cut*disAinv_cut, axis=1)
     velcom = (rawtree_s[branch][idx]['Vel_Com']*ds.units.code_length/ds.units.s).to('m/s').v
     KE = 0.5*np.linalg.norm(star_vel - velcom, axis=1)**2
     E = KE + PE
@@ -448,10 +454,15 @@ def stars_assignment(rawtree_s, pfs, metadata_dir, codetp, print_mode = True):
         #-------------------------
         #reassign_energy_map is a dictionary that contains the energy of a star gets outside of its first assigned halo and move to another halo region
         #The logic here is similar to how we calculate the energy for the overlapped stars
-        reassign_energy_map = collections.defaultdict(list)
-        pos_reassign = pos[np.intersect1d(ID, reassign_dict[idx], return_indices=True)[1]]
-        vel_reassign = vel[np.intersect1d(ID, reassign_dict[idx], return_indices=True)[1]]
-        ID_reassign = ID[np.intersect1d(ID, reassign_dict[idx], return_indices=True)[1]]
+        if len(list(output[idx].keys())) == 0:
+            pos_reassign = np.empty(shape=(0,3))
+            vel_reassign = np.empty(shape=(0,3))
+            ID_reassign = np.empty(0)
+        else:
+            reassign_energy_map = collections.defaultdict(list)
+            pos_reassign = pos[np.intersect1d(ID, reassign_dict[idx], return_indices=True)[1]]
+            vel_reassign = vel[np.intersect1d(ID, reassign_dict[idx], return_indices=True)[1]]
+            ID_reassign = ID[np.intersect1d(ID, reassign_dict[idx], return_indices=True)[1]]
         print('At Snapshot', idx, ', %s stars need to be re-assigned' % len(reassign_dict[idx]))
         halo_wstars_pos, halo_wstars_rvir, halo_wstars_branch = halo_wstars_map[idx].values() #obtain the list of halos with stars, the halo_wstars_map is computed above
         halo_boolean_reassign = np.linalg.norm(pos_reassign[:, np.newaxis, :] - halo_wstars_pos, axis=2) <= halo_wstars_rvir
@@ -533,7 +544,10 @@ if __name__ == "__main__":
     progenitor_branch = sys.argv[4]
     codetp = metadata_dir.split('/work/hdd/bdax/tnguyen2/AGORA/')[1].split('/metadata')[0]
     #
-    rawtree_s = np.load(halo_dir + '/halotree_%s_final.npy' % halotree_ver, allow_pickle=True).tolist()
+    if codetp == 'GIZMO':
+        rawtree = np.load(halo_dir + '/halotree_%s_final_corr.npy' % halotree_ver, allow_pickle=True).tolist()
+    else:
+        rawtree = np.load(halo_dir + '/halotree_%s_final.npy' % halotree_ver, allow_pickle=True).tolist()
     RCT = False
     #rawtree_s = np.load('/work/hdd/bdax/tnguyen2/AGORA/%s/Reformatting_consistenttree_output_checkpoints/halotrees_RCT_reformatted.npy' % codetp, allow_pickle=True).tolist()
     pfsfile = np.loadtxt(halo_dir + '/pfs_allsnaps_%s.txt' % halotree_ver, dtype=str)
@@ -543,10 +557,23 @@ if __name__ == "__main__":
     #
     #merger_key = merger_compute(progenitor_branch, rawtree_s, 0.05, pfsfile)[4]
     #merger_key = np.append(progenitor_branch, merger_key)
-    merger_key = ['0', '0_138', '0_148', '0_104', '2', '0_76']
+    if codetp == 'ART':
+        merger_key = ['0', '0_76', '0_25', '2', '0_16']
+    elif codetp == 'ENZO':
+        merger_key = ['0', '99', '0_63', '0_44', '4', '0_18']
+    elif codetp == 'GADGET3':
+        merger_key = ['0', '4', '0_89', '2', '1']
+    elif codetp == 'AREPO':
+        merger_key = ['0', '0_138', '0_148', '0_104', '2', '0_76']
+    elif codetp == 'CHANGA':
+        merger_key = ['0', '0_53', '0_40', '0_42']
+    elif codetp == 'GIZMO':
+        merger_key = ['0', '0_58_6', '0_58', '3', '2']
+    elif codetp == 'GEAR':
+        merger_key = ['0', '70', '0_93', '2', '3', '0_31']
     rawtree_merger = {}
     for key in merger_key:
-        rawtree_merger[key] = rawtree_s[key]
+        rawtree_merger[key] = rawtree[key]
     if RCT == True:
         if codetp == 'GIZMO' or codetp == 'GEAR':
             factor = 60000
