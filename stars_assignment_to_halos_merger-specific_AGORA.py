@@ -10,32 +10,37 @@ import sys
 import healpy as hp
 from merger_compute import merger_compute
 
-def convert_unitary_to_codelength(tree, factor):
-    if factor == 'CHANGA':
-        tree_c = {}
-        for branch in tree.keys():
-            tree_c[branch] = {}
-            for idx in tree[branch].keys():
-                tree_c[branch][idx] = {}
-                tree_c[branch][idx]['uid'] = tree[branch][idx]['uid']
-                tree_c[branch][idx]['Halo_Center'] = tree[branch][idx]['Halo_Center'] - 0.5
-                tree_c[branch][idx]['Vel_Com'] = tree[branch][idx]['Vel_Com']
-                tree_c[branch][idx]['Halo_Radius'] = tree[branch][idx]['Halo_Radius']
-                tree_c[branch][idx]['Halo_Mass'] = tree[branch][idx]['Halo_Mass']
-                tree_c[branch][idx]['time'] = tree[branch][idx]['time']
+
+def get_r_oden(rawtree, branch, idx, oden):
+    halo = rawtree[branch][idx]
+    r_odenkey = 'r%s' % oden
+    #this function return r200 value or find the closest value to it (in case the halo does not have 'r200' radius)
+    if r_odenkey in halo.keys():
+        r_oden = halo[r_odenkey]
     else:
-        tree_c = {}
-        for branch in tree.keys():
-            tree_c[branch] = {}
-            for idx in tree[branch].keys():
-                tree_c[branch][idx] = {}
-                tree_c[branch][idx]['uid'] = tree[branch][idx]['uid']
-                tree_c[branch][idx]['Halo_Center'] = tree[branch][idx]['Halo_Center']*factor
-                tree_c[branch][idx]['Vel_Com'] = tree[branch][idx]['Vel_Com']*factor
-                tree_c[branch][idx]['Halo_Radius'] = tree[branch][idx]['Halo_Radius']*factor
-                tree_c[branch][idx]['Halo_Mass'] = tree[branch][idx]['Halo_Mass']
-                tree_c[branch][idx]['time'] = tree[branch][idx]['time']
-    return tree_c
+        key_list = list(halo.keys())
+        r_keys = np.array([x[1:] for x in key_list if x[0] =='r'])
+        r_key = r_keys[abs(r_keys.astype(float)-oden)==abs(r_keys.astype(float)-oden).min()][0]
+        r_oden = halo['r'+r_key]
+    return r_oden
+
+def get_r200(rawtree, branch, idx, halo_radius = False):
+    if halo_radius == False:
+        if (get_r_oden(rawtree, branch, idx, 200) < get_r_oden(rawtree, branch, idx, 250)):
+            print('r200 error at Idx %s and Branch %s' % (idx, branch))
+            if ((rawtree[branch][idx]['Halo_Radius'] <= get_r_oden(rawtree, branch, idx, 150)) and (rawtree[branch][idx]['Halo_Radius'] >= get_r_oden(rawtree, branch, idx, 250))) and rawtree[branch][idx]['cden'] < 250 and rawtree[branch][idx]['cden'] > 150:
+                print('Replaced by Halo_Radius')
+                return rawtree[branch][idx]['Halo_Radius']
+            elif get_r_oden(rawtree, branch, idx, 150) >= get_r_oden(rawtree, branch, idx, 250):
+                print('Replaced by closest value to r150')
+                return get_r_oden(rawtree, branch, idx, 150)
+            elif get_r_oden(rawtree, branch, idx, 150) < get_r_oden(rawtree, branch, idx, 250):
+                print('Replaced by closest value to r250')
+                return get_r_oden(rawtree, branch, idx, 250)
+        else:
+            return get_r_oden(rawtree, branch, idx, 200)
+    else:
+        return rawtree[branch][idx]['Halo_Radius']
 
 def search_closest_upper(value, array):
     diff = array - value
@@ -48,29 +53,24 @@ def extract_and_order_snapshotIdx(rawtree, branch):
     snapshotIdx.sort()
     return snapshotIdx
 
-def extract_position_radius_mass_vel(rawtree, branch):
-    idx_list = extract_and_order_snapshotIdx(rawtree, branch)
-    radius_list = np.array([])
-    mass_list = np.array([])
-    position_list = np.empty(shape=(0,3))  
-    vel_list = np.empty(shape=(0,3))
-    for idx in idx_list:
-        radius_list = np.append(radius_list, rawtree[branch][idx]['Halo_Radius'])
-        mass_list = np.append(mass_list, rawtree[branch][idx]['Halo_Mass'])
-        position_list = np.vstack((position_list, rawtree[branch][idx]['Halo_Center']))
-        vel_list = np.vstack((vel_list, rawtree[branch][idx]['Vel_Com']))
-    return position_list, radius_list, mass_list, vel_list, idx_list
 
-def list_of_halos_wstars_idx(rawtree_s, pos_allstars, idx):
+def list_of_halos_idx(rawtree_s, idx, wstars=False):
     halo_wstars_pos = np.empty(shape=(0,3))
     halo_wstars_rvir = np.array([])
     halo_wstars_branch = np.array([])
-    for branch, vals in rawtree_s.items():
-        if idx in vals.keys():
-            if (np.linalg.norm(pos_allstars - rawtree_s[branch][idx]['Halo_Center'], axis=1) < rawtree_s[branch][idx]['Halo_Radius']).any():
+    if wstars == False: #return the properties of ALL halos in this snapshot
+        for branch, vals in rawtree_s.items():
+            if idx in vals.keys():
                 halo_wstars_pos = np.vstack((halo_wstars_pos, vals[idx]['Halo_Center']))
-                halo_wstars_rvir = np.append(halo_wstars_rvir, vals[idx]['Halo_Radius'])
+                halo_wstars_rvir = np.append(halo_wstars_rvir, get_r200(rawtree_s, branch, idx, halo_radius_switch))
                 halo_wstars_branch = np.append(halo_wstars_branch, branch)   
+    else: #return the properties of only halos with stars in this snapshot idx
+        for branch, vals in rawtree_s.items():
+            if idx in vals.keys():
+                if (np.linalg.norm(pos_allstars - rawtree_s[branch][idx]['Halo_Center'], axis=1) < get_r200(rawtree_s, branch, idx, halo_radius_switch)).any():
+                    halo_wstars_pos = np.vstack((halo_wstars_pos, vals[idx]['Halo_Center']))
+                    halo_wstars_rvir = np.append(halo_wstars_rvir, get_r200(rawtree_s, branch, idx, halo_radius_switch))
+                    halo_wstars_branch = np.append(halo_wstars_branch, branch)   
     return halo_wstars_pos, halo_wstars_rvir, halo_wstars_branch
 
 def vecs_calc(nside):
@@ -148,12 +148,12 @@ def find_total_E(star_pos, star_vel, ds, rawtree_s, branch, idx, dense=True):
         posA_cut = cutparticles['pos']
         massA_cut = cutparticles['mass']
     else:
-        regA = ds.sphere(rawtree_s[branch][idx]['Halo_Center'], rawtree_s[branch][idx]['Halo_Radius'])
+        regA = ds.sphere(rawtree_s[branch][idx]['Halo_Center'], get_r200(rawtree_s, branch, idx, halo_radius_switch))
         massA = regA['all','particle_mass'].to('kg').v
         posA = regA['all','particle_position'].to('m')
         #velA = regA['all','particle_velocity'].to('m/s')
         #
-        boolloc = np.linalg.norm(posA.to('code_length').v - rawtree_s[branch][idx]['Halo_Center'], axis=1) <= rawtree_s[branch][idx]['Halo_Radius']
+        boolloc = np.linalg.norm(posA.to('code_length').v - rawtree_s[branch][idx]['Halo_Center'], axis=1) <= get_r200(rawtree_s, branch, idx, halo_radius_switch)
         #
         posA = posA[boolloc]
         #velA = velA[boolall]
@@ -221,7 +221,7 @@ def find_total_E(star_pos, star_vel, ds, rawtree_s, branch, idx, dense=True):
     return E
 
 
-def stars_assignment(rawtree_s, pfs, metadata_dir, codetp, print_mode = True):
+def stars_assignment(rawtree_s, pfs, metadata_dir, codetp, print_mode = True, exception = False):
     """
     This function uniquely assigns each star in the simulation box to a halo. 
     There are two steps:
@@ -262,7 +262,7 @@ def stars_assignment(rawtree_s, pfs, metadata_dir, codetp, print_mode = True):
         highvel_IDs = np.load(metadata_dir + '/' + 'highvel_IDs_ProgBranch-%s.npy' % progenitor_branch, allow_pickle=True).tolist()
         starting_idx = list(halo_wstars_map.keys())[-1] + 1
     #------------------------------------------------------------------------
-    for idx in range(starting_idx, len(pfs)):
+    for idx in range(starting_idx, end_idx):
         #
         if (codetp == 'CHANGA' or codetp == 'ART') and os.path.exists(metadata_dir + '/' + 'star_metadata_allbox_%s.npy' % idx) == False:
             continue
@@ -282,7 +282,7 @@ def stars_assignment(rawtree_s, pfs, metadata_dir, codetp, print_mode = True):
         vel_unassign = vel_all[np.intersect1d(ID_all, ID_unassign, return_indices=True)[1]]
         del vel_all
         #Obtain the halos with stars
-        halo_wstars_pos, halo_wstars_rvir, halo_wstars_branch = list_of_halos_wstars_idx(rawtree_s, pos_all, idx)
+        halo_wstars_pos, halo_wstars_rvir, halo_wstars_branch = list_of_halos_idx(rawtree_s, pos_all, idx, wstars=False)
         del pos_all
         halo_wstars_map[idx] = {} #stored it for later used in Step 2 of the code
         halo_wstars_map[idx]['pos'] = halo_wstars_pos
@@ -358,6 +358,8 @@ def stars_assignment(rawtree_s, pfs, metadata_dir, codetp, print_mode = True):
                 for level in range(nlevels): #add the stars in the sub-branch to higher branches
                     deepest_lvl = loop_branch.split('_')[-1]
                     mainbranch = loop_branch.split('_' + deepest_lvl)[0]
+                    if mainbranch not in rawtree_s.keys():
+                        break
                     merge_timestep = np.max(extract_and_order_snapshotIdx(rawtree_s, loop_branch)) + 1
                     last_timestep = np.max(extract_and_order_snapshotIdx(rawtree_s, mainbranch))
                     for j in range(merge_timestep, last_timestep + 1):
@@ -401,17 +403,27 @@ def stars_assignment(rawtree_s, pfs, metadata_dir, codetp, print_mode = True):
         reassign_dict = np.load(metadata_dir + '/' + 'reassign_dict_step2_ProgBranch-%s.npy' % progenitor_branch, allow_pickle=True).tolist()
         prev_halo_map = np.load(metadata_dir + '/' + 'prev_halo_map_step2_ProgBranch-%s.npy' % progenitor_branch, allow_pickle=True).tolist()
         starting_idx_step2 = list(output_final.keys())[-1] + 1
-    for idx in range(starting_idx_step2, len(pfs)):
+    for idx in range(starting_idx_step2, end_idx):
         output_final[idx] = {}
         if codetp == 'AREPO' or codetp == 'GADGET3':
             ds = yt.load(pfs[idx], unit_base = {"length": (1.0, "Mpccm/h")})
         else:
             ds = yt.load(pfs[idx])
         #
-        if codetp == 'CHANGA' and os.path.exists(metadata_dir + '/' + 'star_metadata_allbox_%s.npy' % idx) == False:
+        if (codetp == 'CHANGA' or codetp == 'ART') and os.path.exists(metadata_dir + '/' + 'star_metadata_allbox_%s.npy' % idx) == False:
             continue
         if codetp == 'AREPO' and idx == 5:
             continue
+        """
+        if exception == True:
+            if progenitor_branch == '0':
+                if codetp == 'GIZMO' and (idx in np.arange(121, 128)):
+                    output_final[idx] = output[idx]
+                    continue
+                if codetp == 'RAMSES' and (idx in np.arange(124, 127)):
+                    output_final[idx] = output[idx]
+                    continue
+        """
         metadata = np.load(metadata_dir + '/' + 'star_metadata_allbox_%s.npy' % idx, allow_pickle=True).tolist()
         pos_all = metadata['pos']
         ID_all = metadata['ID'].astype(int)
@@ -430,7 +442,7 @@ def stars_assignment(rawtree_s, pfs, metadata_dir, codetp, print_mode = True):
             #    None
             #
             halo_center = rawtree_s[branch][idx]['Halo_Center']
-            halo_radius = rawtree_s[branch][idx]['Halo_Radius']
+            halo_radius = get_r200(rawtree_s, branch, idx, halo_radius_switch)
             #
             #remain_bool: stars that still remain in the halo where they are born
             #loss_bool: stars that move out of the halo where they were born 
@@ -495,7 +507,7 @@ def stars_assignment(rawtree_s, pfs, metadata_dir, codetp, print_mode = True):
     #Finalize the output_final star ID and calculate the unique total stellar mass and SFR.
     """
     for idx in output_final.keys():
-        if codetp == 'CHANGA' and os.path.exists(metadata_dir + '/' + 'star_metadata_allbox_%s.npy' % idx) == False:
+        if (codetp == 'CHANGA' or codetp == 'ART') and os.path.exists(metadata_dir + '/' + 'star_metadata_allbox_%s.npy' % idx) == False:
             continue
         if codetp == 'AREPO' and idx == 5:
             continue
@@ -542,48 +554,78 @@ if __name__ == "__main__":
     metadata_dir = sys.argv[2]
     halotree_ver = sys.argv[3]
     progenitor_branch = sys.argv[4]
-    codetp = metadata_dir.split('/work/hdd/bdax/tnguyen2/AGORA/')[1].split('/metadata')[0]
+    codetp = metadata_dir.split('/work/hdd/bezm/tnguyen2/AGORA/')[1].split('/metadata')[0]
     #
-    if codetp == 'GIZMO':
-        rawtree = np.load(halo_dir + '/halotree_%s_final_corr.npy' % halotree_ver, allow_pickle=True).tolist()
-    else:
-        rawtree = np.load(halo_dir + '/halotree_%s_final.npy' % halotree_ver, allow_pickle=True).tolist()
-    RCT = False
-    #rawtree_s = np.load('/work/hdd/bdax/tnguyen2/AGORA/%s/Reformatting_consistenttree_output_checkpoints/halotrees_RCT_reformatted.npy' % codetp, allow_pickle=True).tolist()
+    rawtree = np.load(halo_dir + '/halotree_%s_final.npy' % halotree_ver, allow_pickle=True).tolist()
     pfsfile = np.loadtxt(halo_dir + '/pfs_allsnaps_%s.txt' % halotree_ver, dtype=str)
     pfs = pfsfile[:,0]
     print('Done loading data')
     print(metadata_dir)
     #
-    #merger_key = merger_compute(progenitor_branch, rawtree_s, 0.05, pfsfile)[4]
-    #merger_key = np.append(progenitor_branch, merger_key)
-    if codetp == 'ART':
-        merger_key = ['0', '0_76', '0_25', '2', '0_16']
-    elif codetp == 'ENZO':
-        merger_key = ['0', '99', '0_63', '0_44', '4', '0_18']
-    elif codetp == 'GADGET3':
-        merger_key = ['0', '4', '0_89', '2', '1']
-    elif codetp == 'AREPO':
-        merger_key = ['0', '0_138', '0_148', '0_104', '2', '0_76']
-    elif codetp == 'CHANGA':
-        merger_key = ['0', '0_53', '0_40', '0_42']
-    elif codetp == 'GIZMO':
-        merger_key = ['0', '0_58_6', '0_58', '3', '2']
-    elif codetp == 'GEAR':
-        merger_key = ['0', '70', '0_93', '2', '3', '0_31']
+    if progenitor_branch == '0':
+        if codetp == 'ART':
+            #merger_key = ['0', '0_76', '0_25', '2', '0_16'] #for halotree ver 1268
+            #merger_key = ['0', '0_122' , '0_121' , '0_80' , '0_56' , '0_25'] #for halotree ver 1740
+            merger_key = ['0', '0_143', '0_133', '0_89', '0_59', '0_24'] #for halotree ver 1751
+        elif codetp == 'ENZO':
+            #merger_key = ['0', '99', '0_63', '0_44', '4', '0_18'] #for halotree ver 1247
+            #merger_key = ['0', '0_97', '0_90'] #for halotree ver 1740
+            merger_key = ['0', '0_106', '0_97', '0_64', '0_55', '2', '0_9'] #for halotree ver 1751
+        elif codetp == 'GADGET3':
+            #merger_key = ['0', '4', '0_89', '2', '1'] #for halotree ver 1405
+            #merger_key = ['0',  '0_123' , '0_125' , '0_75' , '0_63' , '0_15'] #for halotree ver 1740
+            merger_key = ['0', '0_142', '0_127', '0_79', '0_69', '0_22'] #for halotree ver 1751
+        elif codetp == 'AREPO':
+            #merger_key = ['0', '0_138', '0_148', '0_104', '2', '0_76'] #for halotree ver 1247
+            #merger_key = ['0', '0_176' , '0_149' , '0_85' , '0_59' , '0_22'] #for halotree ver 1743
+            merger_key = ['0', '0_118', '0_109', '0_77', '0_59', '0_19'] #for halotree ver 1751
+        elif codetp == 'CHANGA':
+            #merger_key = ['0', '0_53', '0_40', '0_42'] #for halotree ver 1423
+            #merger_key = ['0',  '0_66' , '0_69' , '0_30' , '0_7' ] #for halotree ver 1743
+            merger_key = ['0', '0_59', '0_61', '0_28', '0_22'] #for halotree ver 1751
+        elif codetp == 'GIZMO':
+            #merger_key = ['0', '0_53', '0_54', '0_21', '0_0'] #for halotree ver 1712
+            #merger_key = ['0',  '0_79' , '0_65' , '0_16' , '0_17' ] #for halotree ver 1740
+            merger_key = ['0', '33', '0_74', '0_22', '0_0'] #for halotree ver 1751
+        elif codetp == 'GEAR':
+            #merger_key = ['0', '70', '0_93', '2', '3', '0_31'] #for halotree ver 1421
+            #merger_key = ['0',  '0_116_0' ,'0_116', '0_113' , '0_53' , '0_50' , '0_15'] #for halotree ver 1740
+            merger_key = ['0', '0_144', '0_121', '0_86', '0_62', '0_19'] #for halotree ver 1751 #NEED RE-ADJUST THE CENTER
+        elif codetp == 'RAMSES':
+            #merger_key = ['0',  '0_67' , '0_69'  , '0_9' , '0_10'] #for halotree ver 1740
+            merger_key = ['0', '0_63', '0_62', '0_13', '0_16']    #NEED RE-ADJUST THE CENTER
+    if progenitor_branch == '1': #halotree ver 1751
+        if codetp == 'ART':
+            merger_key = ['0_24', '0_24_49', '0_24_49_0']
+        elif codetp == 'ENZO':
+            merger_key = ['2', '2_24']
+        elif codetp == 'GADGET3':
+            merger_key = ['0_22', '0_22_62'] 
+        elif codetp == 'AREPO':
+            merger_key = ['0_19', '0_19_35']
+        elif codetp == 'CHANGA':
+            merger_key = ['1', '1_52', '1_52_0']
+        elif codetp == 'GIZMO':
+            merger_key = ['1', '1_28', '1_28_0']
+        elif codetp == 'GEAR':
+            merger_key = ['0_19', '0_19_39', '0_19_39_0']
+        elif codetp == 'RAMSES':
+            merger_key = ['1', '1_24']
     rawtree_merger = {}
     for key in merger_key:
         rawtree_merger[key] = rawtree[key]
-    if RCT == True:
-        if codetp == 'GIZMO' or codetp == 'GEAR':
-            factor = 60000
-        elif codetp == 'AREPO' or codetp == 'GADGET3':
-            factor = 60
-        elif codetp == 'ENZO' or codetp == 'RAMSES' or codetp == 'ART':
-            factor = 1
-        elif codetp == 'CHANGA':
-            factor = 'CHANGA'
-        rawtree_merger = convert_unitary_to_codelength(rawtree_merger, factor)
+    #
+    halo_radius_switch = False
+    #
+    if codetp == 'GEAR' or codetp == 'CHANGA':
+        step = 2
+    else:
+        step = 1
+    #
+    if progenitor_branch == '0':
+        end_idx = max(extract_and_order_snapshotIdx(rawtree, merger_key[2])) + 80*step
+    else:
+        end_idx = len(pfs)
     #
     stars_assign_output = stars_assignment(rawtree_merger, pfs, metadata_dir, codetp, print_mode = True)
     np.save(metadata_dir + '/stars_assignment_ProgBranch-%s_snapFirst.npy' % progenitor_branch, stars_assign_output)
